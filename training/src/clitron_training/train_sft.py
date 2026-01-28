@@ -30,11 +30,38 @@ def load_config(config_path: Path) -> dict:
         return yaml.safe_load(f)
 
 
+def format_context(context: dict | None) -> str:
+    """Format context for the prompt."""
+    if context is None:
+        return ""
+
+    parts = []
+    if "git" in context and context["git"]:
+        git = context["git"]
+        if git.get("repo_owner") and git.get("repo_name"):
+            parts.append(f"repo: {git['repo_owner']}/{git['repo_name']}")
+        if git.get("current_branch"):
+            parts.append(f"branch: {git['current_branch']}")
+        if git.get("current_pr"):
+            parts.append(f"pr: #{git['current_pr']}")
+        if "has_uncommitted_changes" in git:
+            parts.append(f"uncommitted: {git['has_uncommitted_changes']}")
+        if "has_staged_changes" in git:
+            parts.append(f"staged: {git['has_staged_changes']}")
+
+    if not parts:
+        return ""
+
+    return "<|context|>\n" + "\n".join(parts) + "\n\n"
+
+
 def format_prompt(example: dict) -> str:
     """Format a training example as a prompt."""
+    context_section = format_context(example.get("context"))
     return f"""<|system|>
 You are a CLI command interpreter. Output only valid JSON.
-<|user|>
+
+{context_section}<|user|>
 {example['instruction']}
 <|assistant|>
 {example['output']}"""
@@ -42,8 +69,13 @@ You are a CLI command interpreter. Output only valid JSON.
 
 def preprocess_function(examples: dict, tokenizer) -> dict:
     """Tokenize examples for training."""
-    prompts = [format_prompt({"instruction": i, "output": o})
-               for i, o in zip(examples["instruction"], examples["output"])]
+    # Handle context field (can be None or dict, stored as string or dict in dataset)
+    contexts = examples.get("context", [None] * len(examples["instruction"]))
+
+    prompts = [
+        format_prompt({"instruction": i, "context": c, "output": o})
+        for i, c, o in zip(examples["instruction"], contexts, examples["output"])
+    ]
 
     model_inputs = tokenizer(
         prompts,
