@@ -1,0 +1,65 @@
+[project]
+name = "clitron-training"
+version = "0.1.0"
+description = "Training pipeline for clitron CLI interpreter models"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Mike Chaliy"}
+]
+dependencies = [
+    "anthropic>=0.39.0",
+    "torch>=2.0.0",
+    "transformers>=4.46.0",
+    "datasets>=3.0.0",
+    "peft>=0.13.0",
+    "trl>=0.12.0",
+    "accelerate>=1.0.0",
+    "wandb>=0.18.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.66.0",
+    "sentencepiece>=0.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+]
+# bitsandbytes for Linux GPU training
+cuda = [
+    "bitsandbytes>=0.44.0",
+]
+
+[project.scripts]
+clitron-generate = "clitron_training.generate_dataset:main"
+clitron-train-sft = "clitron_training.train_sft:main"
+clitron-train-dpo = "clitron_training.train_dpo:main"
+clitron-quantize = "clitron_training.quantize:main"
+clitron-evaluate = "clitron_training.evaluate:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/clitron_training"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

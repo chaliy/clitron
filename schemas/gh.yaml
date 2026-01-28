@@ -1,0 +1,646 @@
+# GitHub CLI Schema for clitron
+# This schema defines the commands that hgh can interpret
+
+cli_name: "gh"
+description: "GitHub CLI - Work seamlessly with GitHub from the command line"
+
+commands:
+  - name: "pr"
+    description: "Work with GitHub pull requests"
+    aliases:
+      - "pull-request"
+      - "pull request"
+      - "prs"
+      - "pull requests"
+    subcommands:
+      - name: "list"
+        description: "List pull requests in a repository"
+        aliases:
+          - "show"
+          - "display"
+          - "get"
+          - "find"
+          - "ls"
+        args:
+          - name: "state"
+            type:
+              enum:
+                - "open"
+                - "closed"
+                - "merged"
+                - "all"
+            default: "open"
+            description: "Filter by state"
+          - name: "author"
+            type: string
+            description: "Filter by author (@me for your own)"
+          - name: "assignee"
+            type: string
+            description: "Filter by assignee"
+          - name: "label"
+            type: string
+            description: "Filter by label"
+          - name: "base"
+            type: string
+            description: "Filter by base branch"
+          - name: "head"
+            type: string
+            description: "Filter by head branch"
+          - name: "limit"
+            type: integer
+            default: 30
+            description: "Maximum number of PRs to fetch"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+            natural_language:
+              - "in browser"
+              - "on web"
+              - "open website"
+              - "in the browser"
+
+      - name: "view"
+        description: "View a pull request"
+        aliases:
+          - "show"
+          - "display"
+          - "get"
+          - "open"
+          - "details"
+        args:
+          - name: "number"
+            type: integer
+            required: false
+            description: "PR number (omit for current branch's PR)"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+          - name: "comments"
+            short: "c"
+            description: "View comments"
+
+      - name: "create"
+        description: "Create a pull request"
+        aliases:
+          - "make"
+          - "new"
+          - "open"
+          - "submit"
+        args:
+          - name: "title"
+            type: string
+            description: "PR title"
+          - name: "body"
+            type: string
+            description: "PR body"
+          - name: "base"
+            type: string
+            description: "Base branch"
+          - name: "head"
+            type: string
+            description: "Head branch"
+        flags:
+          - name: "draft"
+            short: "d"
+            description: "Create as draft"
+            natural_language:
+              - "as draft"
+              - "draft pr"
+              - "wip"
+              - "work in progress"
+          - name: "web"
+            short: "w"
+            description: "Open in browser after creating"
+          - name: "fill"
+            short: "f"
+            description: "Use commit info for title and body"
+
+      - name: "merge"
+        description: "Merge a pull request"
+        aliases:
+          - "land"
+          - "complete"
+          - "finish"
+          - "accept"
+        args:
+          - name: "number"
+            type: integer
+            required: false
+            description: "PR number"
+        flags:
+          - name: "squash"
+            short: "s"
+            description: "Squash commits"
+            natural_language:
+              - "squash"
+              - "squash commits"
+          - name: "rebase"
+            short: "r"
+            description: "Rebase commits"
+          - name: "merge"
+            short: "m"
+            description: "Create merge commit"
+          - name: "delete-branch"
+            short: "d"
+            description: "Delete branch after merge"
+            natural_language:
+              - "delete branch"
+              - "remove branch"
+          - name: "auto"
+            description: "Enable auto-merge"
+
+      - name: "checkout"
+        description: "Check out a pull request locally"
+        aliases:
+          - "co"
+          - "switch to"
+        args:
+          - name: "number"
+            type: integer
+            required: true
+            description: "PR number"
+        flags:
+          - name: "detach"
+            description: "Checkout as detached HEAD"
+          - name: "force"
+            short: "f"
+            description: "Force checkout"
+
+      - name: "close"
+        description: "Close a pull request"
+        aliases:
+          - "cancel"
+          - "reject"
+        args:
+          - name: "number"
+            type: integer
+            required: false
+            description: "PR number"
+        flags:
+          - name: "delete-branch"
+            short: "d"
+            description: "Delete branch after closing"
+
+      - name: "ready"
+        description: "Mark a draft PR as ready for review"
+        aliases:
+          - "undraft"
+          - "mark ready"
+        args:
+          - name: "number"
+            type: integer
+            required: false
+            description: "PR number"
+
+  - name: "issue"
+    description: "Work with GitHub issues"
+    aliases:
+      - "issues"
+      - "bug"
+      - "bugs"
+      - "ticket"
+      - "tickets"
+    subcommands:
+      - name: "list"
+        description: "List issues"
+        aliases:
+          - "show"
+          - "display"
+          - "get"
+          - "find"
+          - "ls"
+        args:
+          - name: "state"
+            type:
+              enum:
+                - "open"
+                - "closed"
+                - "all"
+            default: "open"
+            description: "Filter by state"
+          - name: "assignee"
+            type: string
+            description: "Filter by assignee"
+          - name: "author"
+            type: string
+            description: "Filter by author"
+          - name: "label"
+            type: string
+            description: "Filter by label"
+          - name: "milestone"
+            type: string
+            description: "Filter by milestone"
+          - name: "limit"
+            type: integer
+            default: 30
+            description: "Maximum number of issues"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+
+      - name: "view"
+        description: "View an issue"
+        aliases:
+          - "show"
+          - "display"
+          - "get"
+          - "details"
+        args:
+          - name: "number"
+            type: integer
+            required: true
+            description: "Issue number"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+          - name: "comments"
+            short: "c"
+            description: "View comments"
+
+      - name: "create"
+        description: "Create an issue"
+        aliases:
+          - "make"
+          - "new"
+          - "open"
+          - "file"
+          - "report"
+        args:
+          - name: "title"
+            type: string
+            description: "Issue title"
+          - name: "body"
+            type: string
+            description: "Issue body"
+          - name: "label"
+            type: string
+            description: "Labels to add"
+          - name: "assignee"
+            type: string
+            description: "Assignees"
+          - name: "milestone"
+            type: string
+            description: "Milestone"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser after creating"
+
+      - name: "close"
+        description: "Close an issue"
+        aliases:
+          - "resolve"
+          - "complete"
+          - "finish"
+          - "done"
+        args:
+          - name: "number"
+            type: integer
+            required: true
+            description: "Issue number"
+        flags:
+          - name: "reason"
+            short: "r"
+            description: "Reason for closing"
+
+      - name: "reopen"
+        description: "Reopen an issue"
+        args:
+          - name: "number"
+            type: integer
+            required: true
+            description: "Issue number"
+
+      - name: "comment"
+        description: "Add a comment to an issue"
+        args:
+          - name: "number"
+            type: integer
+            required: true
+            description: "Issue number"
+          - name: "body"
+            type: string
+            description: "Comment text"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser to comment"
+
+  - name: "repo"
+    description: "Work with GitHub repositories"
+    aliases:
+      - "repository"
+      - "project"
+    subcommands:
+      - name: "view"
+        description: "View repository details"
+        aliases:
+          - "show"
+          - "info"
+          - "details"
+        args:
+          - name: "repository"
+            type: string
+            description: "Repository in owner/repo format"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+
+      - name: "clone"
+        description: "Clone a repository"
+        aliases:
+          - "download"
+          - "get"
+          - "fetch"
+        args:
+          - name: "repository"
+            type: string
+            required: true
+            description: "Repository to clone"
+          - name: "directory"
+            type: string
+            description: "Target directory"
+        flags:
+          - name: "depth"
+            description: "Create shallow clone"
+
+      - name: "fork"
+        description: "Fork a repository"
+        aliases:
+          - "copy"
+        args:
+          - name: "repository"
+            type: string
+            description: "Repository to fork"
+        flags:
+          - name: "clone"
+            description: "Clone the fork locally"
+          - name: "remote"
+            description: "Add remote for fork"
+
+      - name: "list"
+        description: "List repositories"
+        aliases:
+          - "show"
+          - "my repos"
+          - "ls"
+        args:
+          - name: "owner"
+            type: string
+            description: "Filter by owner"
+          - name: "limit"
+            type: integer
+            default: 30
+            description: "Maximum number of repos"
+        flags:
+          - name: "public"
+            description: "Show only public repos"
+          - name: "private"
+            description: "Show only private repos"
+          - name: "source"
+            description: "Show only non-forks"
+          - name: "fork"
+            description: "Show only forks"
+
+      - name: "create"
+        description: "Create a new repository"
+        aliases:
+          - "make"
+          - "new"
+          - "init"
+        args:
+          - name: "name"
+            type: string
+            required: true
+            description: "Repository name"
+          - name: "description"
+            type: string
+            description: "Repository description"
+        flags:
+          - name: "public"
+            description: "Make public"
+          - name: "private"
+            description: "Make private"
+          - name: "clone"
+            description: "Clone after creating"
+
+  - name: "run"
+    description: "Work with GitHub Actions runs"
+    aliases:
+      - "workflow"
+      - "action"
+      - "actions"
+      - "ci"
+      - "build"
+      - "builds"
+    subcommands:
+      - name: "list"
+        description: "List workflow runs"
+        aliases:
+          - "show"
+          - "display"
+          - "ls"
+        args:
+          - name: "workflow"
+            type: string
+            description: "Workflow name or file"
+          - name: "status"
+            type:
+              enum:
+                - "queued"
+                - "in_progress"
+                - "completed"
+                - "failure"
+                - "success"
+                - "cancelled"
+            description: "Filter by status"
+          - name: "branch"
+            type: string
+            description: "Filter by branch"
+          - name: "limit"
+            type: integer
+            default: 20
+            description: "Maximum number of runs"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+
+      - name: "view"
+        description: "View a workflow run"
+        aliases:
+          - "show"
+          - "details"
+        args:
+          - name: "run_id"
+            type: string
+            description: "Run ID"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+          - name: "log"
+            description: "View logs"
+
+      - name: "watch"
+        description: "Watch a workflow run"
+        aliases:
+          - "follow"
+          - "monitor"
+        args:
+          - name: "run_id"
+            type: string
+            description: "Run ID"
+        flags:
+          - name: "exit-status"
+            description: "Exit with run's status code"
+
+      - name: "rerun"
+        description: "Rerun a workflow"
+        aliases:
+          - "retry"
+          - "restart"
+        args:
+          - name: "run_id"
+            type: string
+            required: true
+            description: "Run ID"
+        flags:
+          - name: "failed"
+            description: "Only rerun failed jobs"
+
+      - name: "cancel"
+        description: "Cancel a workflow run"
+        aliases:
+          - "stop"
+          - "abort"
+        args:
+          - name: "run_id"
+            type: string
+            required: true
+            description: "Run ID"
+
+  - name: "gist"
+    description: "Work with GitHub gists"
+    aliases:
+      - "gists"
+      - "snippet"
+      - "snippets"
+    subcommands:
+      - name: "list"
+        description: "List gists"
+        aliases:
+          - "show"
+          - "ls"
+        args:
+          - name: "limit"
+            type: integer
+            default: 10
+            description: "Maximum number of gists"
+        flags:
+          - name: "public"
+            description: "Show only public gists"
+          - name: "secret"
+            description: "Show only secret gists"
+
+      - name: "view"
+        description: "View a gist"
+        aliases:
+          - "show"
+        args:
+          - name: "id"
+            type: string
+            required: true
+            description: "Gist ID or URL"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+
+      - name: "create"
+        description: "Create a gist"
+        aliases:
+          - "make"
+          - "new"
+        args:
+          - name: "files"
+            type: string
+            description: "Files to include"
+          - name: "description"
+            type: string
+            description: "Gist description"
+        flags:
+          - name: "public"
+            short: "p"
+            description: "Make public"
+          - name: "web"
+            short: "w"
+            description: "Open in browser after creating"
+
+  - name: "release"
+    description: "Work with GitHub releases"
+    aliases:
+      - "releases"
+      - "version"
+      - "versions"
+    subcommands:
+      - name: "list"
+        description: "List releases"
+        aliases:
+          - "show"
+          - "ls"
+        args:
+          - name: "limit"
+            type: integer
+            default: 30
+            description: "Maximum number of releases"
+        flags:
+          - name: "exclude-drafts"
+            description: "Exclude drafts"
+          - name: "exclude-pre-releases"
+            description: "Exclude pre-releases"
+
+      - name: "view"
+        description: "View a release"
+        aliases:
+          - "show"
+        args:
+          - name: "tag"
+            type: string
+            description: "Release tag"
+        flags:
+          - name: "web"
+            short: "w"
+            description: "Open in browser"
+
+      - name: "create"
+        description: "Create a release"
+        aliases:
+          - "make"
+          - "new"
+          - "publish"
+        args:
+          - name: "tag"
+            type: string
+            required: true
+            description: "Release tag"
+          - name: "title"
+            type: string
+            description: "Release title"
+          - name: "notes"
+            type: string
+            description: "Release notes"
+        flags:
+          - name: "draft"
+            short: "d"
+            description: "Create as draft"
+          - name: "prerelease"
+            short: "p"
+            description: "Mark as prerelease"
+          - name: "generate-notes"
+            description: "Generate release notes"

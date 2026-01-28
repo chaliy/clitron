@@ -1,0 +1,29 @@
+[package]
+name = "clitron"
+description = "Library for building human-friendly CLI interfaces using small language models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+# Future: add model backend features
+# llama-cpp = ["llama-cpp-rs"]
+# candle = ["candle-core", "candle-transformers"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+dirs = { workspace = true }
+once_cell = { workspace = true }
+
+# TODO: Add model inference backend when implementing
+# llama-cpp-rs = { version = "0.4", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
