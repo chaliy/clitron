@@ -47,6 +47,7 @@
 #![warn(rustdoc::missing_crate_level_docs)]
 
 pub mod command;
+pub mod context;
 pub mod error;
 pub mod interpreter;
 pub mod model;
@@ -54,6 +55,7 @@ pub mod schema;
 
 // Re-export main types at crate root
 pub use command::InterpretedCommand;
+pub use context::{Context, GitContext};
 pub use error::{ClitronError, Result, ValidationError};
 pub use interpreter::{Interpreter, InterpreterConfig, Suggestion};
 pub use model::{Model, ModelConfig, ModelManager};
@@ -68,6 +70,7 @@ pub const DEFAULT_CONFIDENCE_THRESHOLD: f32 = 0.7;
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::command::InterpretedCommand;
+    pub use crate::context::{Context, GitContext};
     pub use crate::error::{ClitronError, Result};
     pub use crate::interpreter::Interpreter;
     pub use crate::schema::CommandSchema;

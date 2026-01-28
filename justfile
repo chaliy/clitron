@@ -109,12 +109,12 @@ train-setup:
     cd training && uv sync --dev
 
 # Full training pipeline for a CLI
-train name="gh" num="10000" quant="q4_k_m": train-setup (train-generate name num) (train-sft name) (train-generate-preferences name) (train-dpo name) (train-quantize name quant) (train-eval name quant)
+train name="gh" num="3000" quant="q4_k_m": train-setup (train-generate name num) (train-sft name) (train-generate-preferences name) (train-dpo name) (train-quantize name quant) (train-eval name quant)
     @echo "Training complete for {{name}}!"
     @echo "Model: training/models/{{name}}/clitron-{{name}}-{{quant}}.gguf"
 
 # Generate training data using Opus 4.5 (skips if data exists, resumes if interrupted)
-train-generate name="gh" num="10000":
+train-generate name="gh" num="3000":
     #!/usr/bin/env bash
     set -e
     cd training
@@ -130,7 +130,7 @@ train-generate name="gh" num="10000":
     fi
 
 # Force regenerate training data (ignores existing data)
-train-generate-force name="gh" num="10000":
+train-generate-force name="gh" num="3000":
     #!/usr/bin/env bash
     set -e
     cd training

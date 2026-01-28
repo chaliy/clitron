@@ -10,6 +10,62 @@
 2. **Fallback Support**: Users can always use traditional gh syntax
 3. **Learning Tool**: Shows users the equivalent gh command
 4. **Zero Configuration**: Works out of the box with gh installed
+5. **Context-Aware**: Uses git state to improve interpretation
+
+## Context Awareness
+
+hgh gathers git context to enable smarter interpretations:
+
+### Detected Context
+
+| Context | Source | Use Case |
+|---------|--------|----------|
+| Current branch | `git branch --show-current` | Infer PR for "merge this" |
+| Uncommitted changes | `git status --porcelain` | Warn before destructive ops |
+| Staged changes | `git diff --cached` | Suggest commit before push |
+| Repo owner/name | `git remote get-url origin` | Scope to current repo |
+| Current PR | `gh pr view --json number` | Enable "this pr" references |
+| Is worktree | `git rev-parse --git-dir` | Handle worktree-specific ops |
+
+### Context-Aware Examples
+
+```bash
+# On branch 'feature/login' with PR #42
+hgh "merge this"
+# → Interprets as: gh pr merge 42
+
+hgh "show the pr"
+# → Interprets as: gh pr view 42
+
+# With uncommitted changes
+hgh "push this"
+# → Warning: You have uncommitted changes. Commit first?
+
+# In acme/webapp repo
+hgh "list issues"
+# → Interprets as: gh issue list (scoped to current repo)
+```
+
+### Implementation
+
+```rust
+fn gather_context() -> Context {
+    let git = GitContext::detect_with_pr(
+        std::env::var("GITHUB_TOKEN").ok().as_deref()
+    ).ok().flatten();
+
+    Context {
+        git,
+        custom: HashMap::new(),
+    }
+}
+
+fn main() {
+    let context = gather_context();
+    let result = interpreter.interpret_with_context(&input, &context)?;
+    // ...
+}
+```
 
 ## Installation
 
@@ -599,3 +655,151 @@ class Hgh < Formula
   end
 end
 ```
+
+## Training Data Examples
+
+Training examples specific to the `gh` CLI. See [training.md](training.md) for the generic training pipeline.
+
+### Dataset Size
+
+For gh CLI with ~30 subcommands: **~3,000 examples**
+
+| Category | Count | Description |
+|----------|-------|-------------|
+| PR commands | ~800 | list, view, create, merge, checkout, close, ready |
+| Issue commands | ~600 | list, view, create, close, reopen, comment |
+| Repo commands | ~400 | view, clone, fork, list, create |
+| Run/Actions | ~400 | list, view, watch, rerun, cancel |
+| Gist commands | ~200 | list, view, create |
+| Release commands | ~200 | list, view, create |
+| Negative cases | ~400 | ambiguous, incomplete, off-topic |
+
+### Example Training Data
+
+#### Positive Cases (with context)
+
+```json
+{
+  "instruction": "merge this and delete the branch",
+  "context": {
+    "git": {
+      "current_branch": "feature/add-login",
+      "repo_owner": "acme",
+      "repo_name": "webapp",
+      "current_pr": 123,
+      "has_uncommitted_changes": false
+    }
+  },
+  "output": "{\"type\": \"command\", \"command\": \"pr\", \"subcommand\": \"merge\", \"args\": {\"number\": 123}, \"flags\": [\"delete-branch\"], \"confidence\": 0.95}"
+}
+```
+
+```json
+{
+  "instruction": "show the pr",
+  "context": {
+    "git": {
+      "current_branch": "fix/bug-456",
+      "current_pr": 42
+    }
+  },
+  "output": "{\"type\": \"command\", \"command\": \"pr\", \"subcommand\": \"view\", \"args\": {\"number\": 42}, \"flags\": [], \"confidence\": 0.95}"
+}
+```
+
+```json
+{
+  "instruction": "close this issue",
+  "context": null,
+  "output": "{\"type\": \"clarification\", \"message\": \"Which issue would you like to close?\", \"suggestions\": [], \"confidence\": 0.3}"
+}
+```
+
+#### Positive Cases (without context)
+
+```json
+{
+  "instruction": "list my open pull requests",
+  "context": null,
+  "output": "{\"type\": \"command\", \"command\": \"pr\", \"subcommand\": \"list\", \"args\": {\"author\": \"@me\", \"state\": \"open\"}, \"flags\": [], \"confidence\": 0.95}"
+}
+```
+
+```json
+{
+  "instruction": "show issues labeled bug",
+  "context": null,
+  "output": "{\"type\": \"command\", \"command\": \"issue\", \"subcommand\": \"list\", \"args\": {\"label\": \"bug\"}, \"flags\": [], \"confidence\": 0.92}"
+}
+```
+
+```json
+{
+  "instruction": "create a draft pr",
+  "context": null,
+  "output": "{\"type\": \"command\", \"command\": \"pr\", \"subcommand\": \"create\", \"args\": {}, \"flags\": [\"draft\"], \"confidence\": 0.9}"
+}
+```
+
+#### Negative Cases (clarification needed)
+
+```json
+{
+  "instruction": "pr",
+  "context": null,
+  "output": "{\"type\": \"clarification\", \"message\": \"What would you like to do with pull requests?\", \"suggestions\": [{\"label\": \"List PRs\", \"command\": \"pr\", \"subcommand\": \"list\"}, {\"label\": \"Create PR\", \"command\": \"pr\", \"subcommand\": \"create\"}, {\"label\": \"View current PR\", \"command\": \"pr\", \"subcommand\": \"view\"}], \"confidence\": 0.3}"
+}
+```
+
+```json
+{
+  "instruction": "show 123",
+  "context": null,
+  "output": "{\"type\": \"clarification\", \"message\": \"Did you mean PR #123 or Issue #123?\", \"suggestions\": [{\"label\": \"PR #123\", \"command\": \"pr\", \"subcommand\": \"view\", \"args\": {\"number\": 123}}, {\"label\": \"Issue #123\", \"command\": \"issue\", \"subcommand\": \"view\", \"args\": {\"number\": 123}}], \"confidence\": 0.4}"
+}
+```
+
+```json
+{
+  "instruction": "what's the weather",
+  "context": null,
+  "output": "{\"type\": \"clarification\", \"message\": \"I can help with GitHub commands like pull requests, issues, repos, and workflows. What would you like to do?\", \"suggestions\": [], \"confidence\": 0.1}"
+}
+```
+
+### Context-Dependent Interpretations
+
+| Input | Without Context | With Context (PR #42) |
+|-------|-----------------|----------------------|
+| "merge this" | Clarification: which PR? | `pr merge 42` |
+| "show the pr" | Clarification: which PR? | `pr view 42` |
+| "close it" | Clarification: close what? | `pr close 42` |
+| "checkout the pr" | Clarification: which PR? | `pr checkout 42` |
+| "mark as ready" | Clarification: which PR? | `pr ready 42` |
+
+### Phrasing Variations
+
+Examples of how the same command can be expressed:
+
+**List open PRs:**
+- "show my open pull requests"
+- "list open prs"
+- "what prs do i have open"
+- "my pending pull requests"
+- "open prs by me"
+- "display my active prs"
+
+**Create a PR:**
+- "create a pull request"
+- "make a pr"
+- "open a new pr"
+- "submit pr"
+- "new pull request"
+- "create pr for this branch"
+
+**Merge PR #123:**
+- "merge pr 123"
+- "merge #123"
+- "land pr 123"
+- "complete pull request 123"
+- "merge pull request number 123"

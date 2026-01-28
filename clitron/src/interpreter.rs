@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use crate::command::InterpretedCommand;
+use crate::context::Context;
 use crate::error::{ClitronError, Result, ValidationError};
 use crate::model::{Model, ModelConfig};
 use crate::schema::{ArgType, CommandSchema};
@@ -92,6 +93,51 @@ impl Interpreter {
 
         // Run inference
         let mut cmd = self.model.infer(input)?;
+        cmd.raw_output = input.to_string();
+
+        // Validate against schema
+        if self.config.validate {
+            self.validate(&cmd)?;
+        }
+
+        // Check confidence
+        if !cmd.is_confident(self.config.confidence_threshold) {
+            return Err(ClitronError::LowConfidence {
+                confidence: cmd.confidence,
+                suggestion: cmd.to_shell_command(&self.schema.cli_name),
+            });
+        }
+
+        Ok(cmd)
+    }
+
+    /// Interpret with environmental context.
+    ///
+    /// Context provides information about the current environment (git state, etc.)
+    /// that helps the model make better interpretations.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let context = Context::with_git()?;
+    /// let cmd = interpreter.interpret_with_context("merge this", &context)?;
+    /// ```
+    pub fn interpret_with_context(
+        &self,
+        input: &str,
+        context: &Context,
+    ) -> Result<InterpretedCommand> {
+        let input = input.trim();
+
+        if input.is_empty() {
+            return Err(ClitronError::Inference("Empty input".into()));
+        }
+
+        tracing::debug!("Interpreting with context: {}", input);
+        tracing::debug!("Context: {}", context.to_prompt_string());
+
+        // Run inference with context
+        let mut cmd = self.model.infer_with_context(input, context)?;
         cmd.raw_output = input.to_string();
 
         // Validate against schema

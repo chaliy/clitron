@@ -108,6 +108,64 @@ impl InterpretedCommand {
 }
 ```
 
+### Context
+
+Context provides environmental information that improves interpretation accuracy:
+
+```rust
+/// Environmental context for interpretation
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Context {
+    /// Git repository context
+    pub git: Option<GitContext>,
+    /// Custom key-value pairs for CLI-specific context
+    pub custom: HashMap<String, String>,
+}
+
+/// Git repository state
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitContext {
+    /// Current branch name
+    pub current_branch: Option<String>,
+    /// Whether there are uncommitted changes
+    pub has_uncommitted_changes: bool,
+    /// Whether there are staged changes
+    pub has_staged_changes: bool,
+    /// Whether we're in a worktree
+    pub is_worktree: bool,
+    /// Repository owner (from remote URL)
+    pub repo_owner: Option<String>,
+    /// Repository name (from remote URL)
+    pub repo_name: Option<String>,
+    /// PR number associated with current branch (if any)
+    pub current_pr: Option<u64>,
+    /// Upstream tracking branch
+    pub upstream_branch: Option<String>,
+}
+
+impl Context {
+    /// Create empty context
+    pub fn new() -> Self;
+
+    /// Create context with git information (auto-detected)
+    pub fn with_git() -> Result<Self, ClitronError>;
+
+    /// Add custom context value
+    pub fn set(&mut self, key: &str, value: &str) -> &mut Self;
+
+    /// Format context for model prompt
+    pub fn to_prompt_string(&self) -> String;
+}
+
+impl GitContext {
+    /// Detect git context from current directory
+    pub fn detect() -> Result<Option<Self>, ClitronError>;
+
+    /// Detect with PR lookup via GitHub API
+    pub fn detect_with_pr(github_token: Option<&str>) -> Result<Option<Self>, ClitronError>;
+}
+```
+
 ### Interpreter
 
 ```rust
@@ -163,18 +221,18 @@ impl Interpreter {
     /// Create with default config
     pub fn with_schema(schema: CommandSchema) -> Result<Self, ClitronError>;
 
-    /// Interpret natural language input
+    /// Interpret natural language input (no context)
     pub fn interpret(&self, input: &str) -> Result<InterpretedCommand, ClitronError>;
 
-    /// Interpret with custom context/examples
+    /// Interpret with environmental context
     pub fn interpret_with_context(
         &self,
         input: &str,
-        context: &str
+        context: &Context
     ) -> Result<InterpretedCommand, ClitronError>;
 
     /// Get suggestions for ambiguous input
-    pub fn suggest(&self, input: &str) -> Result<Vec<Suggestion>, ClitronError>;
+    pub fn suggest(&self, input: &str, context: Option<&Context>) -> Result<Vec<Suggestion>, ClitronError>;
 
     /// Validate command against schema
     pub fn validate(&self, cmd: &InterpretedCommand) -> Result<(), ValidationError>;

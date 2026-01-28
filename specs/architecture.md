@@ -31,12 +31,64 @@ Clitron is a library that transforms natural language CLI input into structured 
 
 ## Data Flow
 
-1. **Input Phase**: User provides natural language input
-2. **Tokenization**: Input is tokenized using the model's tokenizer
-3. **Inference**: Small LLM generates structured output (JSON)
-4. **Parsing**: JSON is parsed into Rust structs
-5. **Mapping**: Structs are mapped to clap-compatible arguments
-6. **Execution**: Host CLI executes the interpreted command
+1. **Context Gathering**: CLI collects environment context (git state, etc.)
+2. **Input Phase**: User provides natural language input
+3. **Prompt Construction**: Input + context formatted for model
+4. **Tokenization**: Prompt is tokenized using the model's tokenizer
+5. **Inference**: Small LLM generates structured output (JSON)
+6. **Parsing**: JSON is parsed into Rust structs
+7. **Mapping**: Structs are mapped to clap-compatible arguments
+8. **Execution**: Host CLI executes the interpreted command
+
+## Context-Aware Interpretation
+
+The interpreter accepts optional context that improves interpretation accuracy:
+
+```rust
+pub struct Context {
+    /// Git repository context (if in a git repo)
+    pub git: Option<GitContext>,
+    /// Custom key-value context from the CLI
+    pub custom: HashMap<String, String>,
+}
+
+pub struct GitContext {
+    pub current_branch: Option<String>,
+    pub has_uncommitted_changes: bool,
+    pub has_staged_changes: bool,
+    pub is_worktree: bool,
+    pub repo_owner: Option<String>,
+    pub repo_name: Option<String>,
+    pub current_pr: Option<u64>,      // PR associated with current branch
+    pub upstream_branch: Option<String>,
+}
+```
+
+### Context Examples
+
+| User Input | Without Context | With Context |
+|------------|-----------------|--------------|
+| "merge this" | ❌ Clarification needed | ✅ `pr merge 123` (knows current PR) |
+| "push" | ❌ Ambiguous | ✅ `git push origin feature-x` (knows branch) |
+| "show the pr" | ❌ Which PR? | ✅ `pr view 123` (knows current PR) |
+| "diff" | ❌ Diff what? | ✅ `pr diff` (has uncommitted changes) |
+
+### Prompt Format with Context
+
+```
+<|system|>
+You are a CLI interpreter. Output only valid JSON.
+<|context|>
+repo: owner/repo-name
+branch: feature/add-login
+pr: #123
+uncommitted: true
+staged: false
+<|user|>
+merge this and delete the branch
+<|assistant|>
+{"type": "command", "command": "pr", "subcommand": "merge", "args": {"number": 123}, "flags": ["delete-branch"], "confidence": 0.95}
+```
 
 ## Key Design Decisions
 

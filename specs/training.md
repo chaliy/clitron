@@ -25,19 +25,18 @@ training/models/{name}/       # Trained models
 
 ```bash
 # Full pipeline for a CLI
-just train name=gh                    # Train for GitHub CLI
-just train name=docker                # Train for Docker CLI
-just train name=gh num=5000           # Custom example count
-just train name=gh quant=q8_0         # Custom quantization
+just train name=mycli                 # Train for a CLI
+just train name=mycli num=5000        # Custom example count
+just train name=mycli quant=q8_0      # Custom quantization
 
 # Individual stages
-just train-generate name=gh           # Generate data (skips if exists)
-just train-generate-force name=gh     # Force regenerate data
-just train-sft name=gh                # Run SFT training
-just train-generate-preferences name=gh
-just train-dpo name=gh
-just train-quantize name=gh
-just train-eval name=gh
+just train-generate name=mycli        # Generate data (skips if exists)
+just train-generate-force name=mycli  # Force regenerate data
+just train-sft name=mycli             # Run SFT training
+just train-generate-preferences name=mycli
+just train-dpo name=mycli
+just train-quantize name=mycli
+just train-eval name=mycli
 
 # List available schemas
 just train-list-schemas
@@ -81,35 +80,162 @@ Data generation automatically resumes from interruptions:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Training Data Size
+
+### Analysis
+
+This is a **constrained mapping task**, not open-ended generation. The model needs to:
+- Map phrases → command/subcommand (classification)
+- Extract arguments from natural language (slot filling)
+- Recognize flags from context
+- Handle ambiguous/incomplete inputs
+
+**Coverage calculation:**
+
+```
+N subcommands
+× ~10 phrasing variations each
+× ~5 arg/flag combinations
+= N × 50 core examples
+
++ negative cases (ambiguous, incomplete, off-topic)
++ edge cases (typos, synonyms, formality variations)
+= estimated total
+```
+
+### Recommended Dataset Size
+
+For a typical CLI with ~30 subcommands: **~3,000 examples**
+
+**Rationale:**
+- Intent classification research: 100-500 examples/class works well
+- Diminishing returns hit around 3,000-5,000 for constrained tasks
+- Quality over quantity - diverse, well-crafted examples beat volume
+
+**Distribution:**
+- ~60% positive cases with context
+- ~20% positive cases without context
+- ~20% negative cases (ambiguous, incomplete, clarification needed)
+
+**Context variations:**
+- With full context (all relevant environment info)
+- With partial context (some info missing)
+- Without any context (context: null)
+
+## Response Types
+
+### Training Data Format
+
+Each training example includes optional context:
+
+```json
+{
+  "instruction": "<natural language input>",
+  "context": {
+    "git": {
+      "current_branch": "feature/example",
+      "repo_owner": "owner",
+      "repo_name": "repo",
+      "current_pr": 123,
+      "has_uncommitted_changes": false
+    }
+  },
+  "output": "{\"type\": \"command\", \"command\": \"...\", \"subcommand\": \"...\", \"args\": {...}, \"flags\": [...], \"confidence\": 0.95}"
+}
+```
+
+Examples without context (for when context is unavailable):
+
+```json
+{
+  "instruction": "<natural language input>",
+  "context": null,
+  "output": "{\"type\": \"command\", \"command\": \"...\", \"subcommand\": \"...\", \"args\": {...}, \"flags\": [], \"confidence\": 0.95}"
+}
+```
+
+### Positive Response (Clear Command)
+
+When input clearly maps to a command:
+
+```json
+{
+  "type": "command",
+  "command": "<command>",
+  "subcommand": "<subcommand>",
+  "args": {"<arg>": "<value>"},
+  "flags": ["<flag>"],
+  "confidence": 0.95
+}
+```
+
+### Clarification Response (Ambiguous Input)
+
+When input is ambiguous or incomplete, respond with suggestions:
+
+```json
+{
+  "type": "clarification",
+  "message": "Did you mean X or Y?",
+  "suggestions": [
+    {"label": "Option A", "command": "...", "subcommand": "..."},
+    {"label": "Option B", "command": "...", "subcommand": "..."}
+  ],
+  "confidence": 0.4
+}
+```
+
+### Negative Cases to Handle
+
+| Case | Description | Expected Response |
+|------|-------------|-------------------|
+| Ambiguous command | Command name without subcommand | Clarification with options |
+| Missing required arg | Required argument not provided | Ask for the missing value |
+| Unclear intent | Vague or unclear request | Ask what user wants to do |
+| Off-topic | Request outside CLI scope | Explain what CLI can do |
+| Multiple interpretations | Input matches multiple commands | Clarification with options |
+| Typos with ambiguity | Typo makes intent unclear | Suggest correction |
+
+### Context-Dependent Interpretations
+
+| Input Pattern | Without Context | With Context |
+|---------------|-----------------|--------------|
+| "this", "current" | ❌ Clarification needed | ✅ Use context to resolve |
+| Pronouns ("it", "them") | ❌ Ambiguous | ✅ Resolve from context |
+| Implicit targets | ❌ Ask for target | ✅ Infer from environment |
+
+### Confidence Thresholds
+
+| Confidence | Action |
+|------------|--------|
+| >= 0.9 | Execute command |
+| 0.7 - 0.9 | Execute with confirmation |
+| 0.5 - 0.7 | Show clarification with suggestions |
+| < 0.5 | Ask for clarification |
+
 ## Stage 1: Data Generation
 
 ### Input Schema Format
 
 ```yaml
 # schema.yaml
-cli_name: "gh"
-description: "GitHub CLI"
+cli_name: "<cli-name>"
+description: "<CLI description>"
 commands:
-  - name: "pr"
-    description: "Work with pull requests"
+  - name: "<command>"
+    description: "<description>"
     subcommands:
-      - name: "list"
-        description: "List pull requests"
+      - name: "<subcommand>"
+        description: "<description>"
         args:
-          - name: "state"
-            type: "enum"
-            values: ["open", "closed", "merged", "all"]
-            default: "open"
-          - name: "author"
-            type: "string"
-            description: "Filter by author"
-          - name: "limit"
-            type: "integer"
-            default: 30
+          - name: "<arg>"
+            type: "string|integer|enum"
+            required: true|false
+            default: "<default>"
         flags:
-          - name: "web"
-            short: "w"
-            description: "Open in browser"
+          - name: "<flag>"
+            short: "<char>"
+            description: "<description>"
 ```
 
 ### Generation Prompt Template
@@ -123,7 +249,8 @@ Given this CLI schema:
 Generate {n} diverse examples of natural language inputs that map to CLI commands.
 For each example, provide:
 1. Natural language input (how a human might say it)
-2. Structured JSON output
+2. Optional context (environment state)
+3. Structured JSON output
 
 Vary the examples by:
 - Formality level (casual to precise)
@@ -131,53 +258,22 @@ Vary the examples by:
 - Synonyms (show/display/list, make/create, etc.)
 - Word order variations
 - With/without optional arguments
+- With/without context
+
+Include negative cases:
+- Ambiguous inputs requiring clarification
+- Incomplete inputs missing required info
+- Off-topic requests
 
 Output as JSON array:
 [
   {
-    "input": "show me open prs",
-    "output": {"command": "pr", "subcommand": "list", "args": {"state": "open"}, "flags": []}
+    "input": "<natural language>",
+    "context": {...} or null,
+    "output": {"type": "command|clarification", ...}
   },
   ...
 ]
-```
-
-### Data Generation Script
-
-```python
-# training/src/generate_dataset.py
-
-import anthropic
-import json
-from pathlib import Path
-
-def generate_training_data(
-    schema_path: Path,
-    output_path: Path,
-    num_examples: int = 10000,
-    batch_size: int = 50
-) -> None:
-    """Generate training data using Opus 4.5."""
-    client = anthropic.Anthropic()
-
-    schema = load_schema(schema_path)
-    examples = []
-
-    for batch in range(num_examples // batch_size):
-        response = client.messages.create(
-            model="claude-opus-4-5-20251101",
-            max_tokens=4096,
-            messages=[{
-                "role": "user",
-                "content": format_generation_prompt(schema, batch_size)
-            }]
-        )
-
-        batch_examples = parse_examples(response.content)
-        validated = validate_examples(batch_examples, schema)
-        examples.extend(validated)
-
-    save_dataset(examples, output_path)
 ```
 
 ### Validation Rules
@@ -185,7 +281,7 @@ def generate_training_data(
 1. **JSON Validity**: Output must be valid JSON
 2. **Schema Compliance**: Command/subcommand must exist in schema
 3. **Arg Types**: Arguments must match schema types
-4. **Required Args**: All required args must be present
+4. **Required Args**: All required args must be present (or clarification requested)
 5. **Diversity Check**: Ensure input variation across dataset
 
 ## Stage 2: Supervised Fine-Tuning (SFT)
@@ -194,7 +290,6 @@ def generate_training_data(
 
 ```yaml
 # training/configs/sft_config.yaml
-# Note: data and output paths are overridden by CLI args for named trainings
 model:
   name: "meta-llama/Llama-3.2-1B-Instruct"
 
@@ -215,8 +310,8 @@ training:
   lora_target_modules: ["q_proj", "v_proj", "k_proj", "o_proj"]
 
 data:
-  train_file: "./data/train.jsonl"        # Overridden to ./data/{name}/train.jsonl
-  validation_file: "./data/train_val.jsonl"  # Overridden to ./data/{name}/train_val.jsonl
+  train_file: "./data/train.jsonl"
+  validation_file: "./data/train_val.jsonl"
   max_seq_length: 2048
 
 logging:
@@ -224,157 +319,42 @@ logging:
   logging_steps: 10
 ```
 
-### Training Script
-
-```python
-# training/src/train_sft.py
-
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    TrainingArguments,
-    Trainer
-)
-from peft import LoraConfig, get_peft_model
-from datasets import load_dataset
-
-def train_sft(config_path: str) -> None:
-    config = load_config(config_path)
-
-    # Load base model
-    model = AutoModelForCausalLM.from_pretrained(
-        config.model.name,
-        torch_dtype=torch.bfloat16,
-        device_map="auto"
-    )
-    tokenizer = AutoTokenizer.from_pretrained(config.model.name)
-
-    # Apply LoRA
-    lora_config = LoraConfig(
-        r=config.training.lora_r,
-        lora_alpha=config.training.lora_alpha,
-        lora_dropout=config.training.lora_dropout,
-        target_modules=config.training.lora_target_modules
-    )
-    model = get_peft_model(model, lora_config)
-
-    # Load and format dataset
-    dataset = load_dataset("json", data_files={
-        "train": config.data.train_file,
-        "validation": config.data.validation_file
-    })
-
-    # Train
-    trainer = Trainer(
-        model=model,
-        args=TrainingArguments(**config.training),
-        train_dataset=dataset["train"],
-        eval_dataset=dataset["validation"],
-        tokenizer=tokenizer
-    )
-
-    trainer.train()
-    trainer.save_model()
-```
-
 ## Stage 3: DPO Training
 
 ### Preference Data Generation
 
-Generate preference pairs using Opus 4.5 to evaluate outputs:
+Generate preference pairs using a large LLM to evaluate outputs:
 
 ```python
 def generate_preference_data(
     sft_model_path: str,
     schema: dict,
-    num_pairs: int = 5000
+    num_pairs: int = 1000
 ) -> list[dict]:
     """Generate preference pairs for DPO training."""
-
-    preferences = []
-    sft_model = load_model(sft_model_path)
-    opus_client = anthropic.Anthropic()
-
-    for prompt in generate_test_prompts(schema, num_pairs):
-        # Get SFT model output
-        model_output = sft_model.generate(prompt)
-
-        # Get "ideal" output from Opus
-        ideal_output = opus_client.messages.create(
-            model="claude-opus-4-5-20251101",
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        # Create preference pair
-        preferences.append({
-            "prompt": prompt,
-            "chosen": ideal_output,  # Opus output preferred
-            "rejected": model_output  # SFT output if different
-        })
-
-    return preferences
+    # Get SFT model output
+    # Get "ideal" output from large LLM
+    # Create preference pair where ideal is preferred
 ```
 
 ### DPO Configuration
 
 ```yaml
 # training/configs/dpo_config.yaml
-# Note: model and data paths are overridden by CLI args for named trainings
 model:
   name: "./models/sft"  # Overridden to ./models/{name}/sft
 
 training:
-  output_dir: "./models/dpo"  # Overridden to ./models/{name}/dpo
+  output_dir: "./models/dpo"
   num_train_epochs: 1
   per_device_train_batch_size: 4
   gradient_accumulation_steps: 8
   learning_rate: 5e-6
-
-  # DPO specific
   beta: 0.1  # KL penalty coefficient
-  loss_type: "sigmoid"  # or "hinge"
+  loss_type: "sigmoid"
 
 data:
-  preference_file: "./data/preferences.jsonl"  # Overridden to ./data/{name}/preferences.jsonl
-```
-
-### DPO Training Script
-
-```python
-# training/src/train_dpo.py
-
-from trl import DPOTrainer, DPOConfig
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from datasets import load_dataset
-
-def train_dpo(config_path: str) -> None:
-    config = load_config(config_path)
-
-    # Load SFT model as starting point
-    model = AutoModelForCausalLM.from_pretrained(config.model.name)
-    ref_model = AutoModelForCausalLM.from_pretrained(config.model.name)
-    tokenizer = AutoTokenizer.from_pretrained(config.model.name)
-
-    # Load preference data
-    dataset = load_dataset("json", data_files=config.data.preference_file)
-
-    # DPO training
-    dpo_config = DPOConfig(
-        beta=config.training.beta,
-        loss_type=config.training.loss_type,
-        **config.training
-    )
-
-    trainer = DPOTrainer(
-        model=model,
-        ref_model=ref_model,
-        args=dpo_config,
-        train_dataset=dataset["train"],
-        tokenizer=tokenizer
-    )
-
-    trainer.train()
-    trainer.save_model()
+  preference_file: "./data/preferences.jsonl"
 ```
 
 ## Stage 4: Quantization
@@ -395,97 +375,6 @@ python -m llama_cpp.convert \
     q4_k_m
 ```
 
-### Quantization Script
-
-```python
-# training/src/quantize.py
-
-import subprocess
-from pathlib import Path
-
-def quantize_model(
-    input_path: Path,
-    output_path: Path,
-    quantization: str = "q4_k_m"
-) -> None:
-    """Quantize model to GGUF format."""
-
-    # First convert to GGUF if needed
-    if input_path.suffix != ".gguf":
-        gguf_path = input_path.with_suffix(".gguf")
-        subprocess.run([
-            "python", "-m", "llama_cpp.convert",
-            "--input", str(input_path),
-            "--output", str(gguf_path),
-            "--outtype", "f16"
-        ], check=True)
-        input_path = gguf_path
-
-    # Quantize
-    subprocess.run([
-        "llama-quantize",
-        str(input_path),
-        str(output_path),
-        quantization
-    ], check=True)
-```
-
-## Automated Pipeline
-
-### Full Training Pipeline
-
-The training pipeline is managed via `just` (see `justfile`):
-
-```bash
-# Full pipeline - runs all stages sequentially
-just train name=gh num=10000 quant=q4_k_m
-
-# This executes:
-# 1. train-setup      - Set up Python environment with uv
-# 2. train-generate   - Generate training data (skips if exists)
-# 3. train-sft        - Supervised fine-tuning
-# 4. train-generate-preferences - Generate DPO preference pairs
-# 5. train-dpo        - Direct Preference Optimization
-# 6. train-quantize   - Convert to GGUF and quantize
-# 7. train-eval       - Evaluate model accuracy
-```
-
-### Pipeline Implementation
-
-Each stage is a separate `just` recipe that can be run independently:
-
-```just
-# justfile (simplified)
-
-train name="gh" num="10000" quant="q4_k_m": \
-    train-setup \
-    (train-generate name num) \
-    (train-sft name) \
-    (train-generate-preferences name) \
-    (train-dpo name) \
-    (train-quantize name quant) \
-    (train-eval name quant)
-
-train-generate name="gh" num="10000":
-    cd training && uv run python -m clitron_training.generate_dataset \
-        --schema ../schemas/{{name}}.yaml \
-        --output ./data/{{name}}/train.jsonl \
-        --num-examples {{num}}
-
-train-sft name="gh":
-    cd training && uv run python -m clitron_training.train_sft \
-        --config ./configs/sft_config.yaml \
-        --data-dir ./data/{{name}} \
-        --output-dir ./models/{{name}}/sft
-
-train-dpo name="gh":
-    cd training && uv run python -m clitron_training.train_dpo \
-        --config ./configs/dpo_config.yaml \
-        --model-dir ./models/{{name}}/sft \
-        --output-dir ./models/{{name}}/dpo \
-        --preference-file ./data/{{name}}/preferences.jsonl
-```
-
 ## Hardware Requirements
 
 ### Minimum (Training)
@@ -501,34 +390,21 @@ train-dpo name="gh":
 ### For Data Generation Only
 - CPU: Any modern CPU
 - RAM: 16GB
-- API access to Opus 4.5
+- API access to large LLM
 
 ## Cost Estimates
 
 | Stage | Resource | Estimated Cost |
 |-------|----------|----------------|
-| Data Generation | Opus 4.5 API | ~$50 for 10k examples |
+| Data Generation | LLM API | ~$35 for 3k examples |
 | SFT Training | A100 x 2hrs | ~$10 (cloud) |
 | DPO Training | A100 x 1hr | ~$5 (cloud) |
 | Evaluation | CPU only | Free |
-| **Total** | | **~$65** |
+| **Total** | | **~$50** |
+
+Note: Data generation can be done manually or via conversation with Claude to avoid API costs.
 
 ## Monitoring and Logging
-
-### Weights & Biases Integration
-
-```python
-import wandb
-
-wandb.init(
-    project="clitron",
-    config={
-        "model": "llama-3.2-1b",
-        "training_type": "sft+dpo",
-        "dataset_size": 10000
-    }
-)
-```
 
 ### Metrics to Track
 

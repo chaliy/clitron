@@ -7,6 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::command::InterpretedCommand;
+use crate::context::Context;
 use crate::error::{ClitronError, Result};
 use crate::schema::CommandSchema;
 
@@ -105,17 +106,49 @@ impl Model {
 
     /// Run inference on the given input.
     pub fn infer(&self, input: &str) -> Result<InterpretedCommand> {
-        let prompt = self.build_prompt(input);
+        let prompt = self.build_prompt(input, None);
 
         // TODO: Implement actual inference
         // For now, use simple pattern matching as a fallback
         tracing::debug!("Prompt: {}", prompt);
 
-        self.mock_inference(input)
+        self.mock_inference(input, None)
+    }
+
+    /// Run inference with environmental context.
+    pub fn infer_with_context(
+        &self,
+        input: &str,
+        context: &Context,
+    ) -> Result<InterpretedCommand> {
+        let prompt = self.build_prompt(input, Some(context));
+
+        // TODO: Implement actual inference
+        // For now, use simple pattern matching as a fallback
+        tracing::debug!("Prompt with context: {}", prompt);
+
+        self.mock_inference(input, Some(context))
     }
 
     /// Build the prompt for the model.
-    fn build_prompt(&self, input: &str) -> String {
+    fn build_prompt(&self, input: &str, context: Option<&Context>) -> String {
+        let context_section = context
+            .map(|ctx| {
+                let ctx_str = ctx.to_prompt_string();
+                if ctx_str.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        r#"<|context|>
+{}
+
+"#,
+                        ctx_str
+                    )
+                }
+            })
+            .unwrap_or_default();
+
         format!(
             r#"<|system|>
 You are a CLI command interpreter. Given a natural language command, output a JSON object representing the structured command.
@@ -126,25 +159,43 @@ Available commands:
 Output only valid JSON in this format:
 {{"command": "...", "subcommand": "...", "args": {{}}, "flags": [], "confidence": 0.95}}
 
-<|user|>
+{}<|user|>
 {}
 
 <|assistant|>
 "#,
             self.schema.to_summary(),
+            context_section,
             input
         )
     }
 
     /// Mock inference using simple pattern matching.
     /// This is a fallback when the model is not available.
-    fn mock_inference(&self, input: &str) -> Result<InterpretedCommand> {
+    fn mock_inference(&self, input: &str, context: Option<&Context>) -> Result<InterpretedCommand> {
         let input_lower = input.to_lowercase();
         let words: Vec<&str> = input_lower.split_whitespace().collect();
 
         // Try to identify command and subcommand
         let mut cmd = InterpretedCommand::default();
         cmd.confidence = 0.5; // Lower confidence for mock
+
+        // Check for context-dependent phrases
+        if let Some(ctx) = context {
+            if let Some(ref git) = ctx.git {
+                // "merge this", "close this", "show the pr" with current PR
+                if let Some(pr_num) = git.current_pr {
+                    if input_lower.contains("this")
+                        || input_lower.contains("the pr")
+                        || input_lower.contains("current")
+                    {
+                        cmd.args
+                            .insert("number".into(), serde_json::Value::from(pr_num));
+                        cmd.confidence += 0.1;
+                    }
+                }
+            }
+        }
 
         for command in &self.schema.commands {
             let cmd_matches = words.iter().any(|w| {

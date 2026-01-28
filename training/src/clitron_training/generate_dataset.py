@@ -199,7 +199,7 @@ def save_progress(examples: list[dict[str, str]], output_path: Path) -> None:
 def generate_dataset(
     schema_path: Path,
     output_path: Path,
-    num_examples: int = 10000,
+    num_examples: int = 3000,
     batch_size: int = 50,
     validation_split: float = 0.1,
     resume: bool = True,
@@ -283,7 +283,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate training data for clitron")
     parser.add_argument("--schema", type=Path, required=True, help="Path to schema YAML")
     parser.add_argument("--output", type=Path, required=True, help="Output JSONL path")
-    parser.add_argument("--num-examples", type=int, default=10000, help="Number of examples")
+    parser.add_argument("--num-examples", type=int, default=3000, help="Number of examples")
     parser.add_argument("--batch-size", type=int, default=50, help="Batch size for generation")
     parser.add_argument("--validation-split", type=float, default=0.1, help="Validation split")
     parser.add_argument("--no-resume", action="store_true", help="Start fresh, don't resume")
