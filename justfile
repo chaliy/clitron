@@ -99,10 +99,11 @@ hgh-test:
 #   - Data: training/data/{name}/
 #   - Models: training/models/{name}/
 #
-# Examples:
-#   just train name=gh              # Train model for GitHub CLI
-#   just train name=docker          # Train model for Docker CLI
-#   just train-generate name=gh     # Only generate data for gh
+# Usage (use positional args OR name= before recipe):
+#   just train gh                   # Train model for GitHub CLI (positional)
+#   just name=gh train              # Same, using named variable
+#   just train-sft gh               # Run SFT training for gh
+#   just train-generate gh 5000     # Generate 5000 examples for gh
 
 # Set up Python training environment
 train-setup:
@@ -121,7 +122,7 @@ train-generate name="gh" num="3000":
     mkdir -p "./data/{{name}}"
     if [[ -f "./data/{{name}}/train.jsonl" ]]; then
         echo "Training data already exists (./data/{{name}}/train.jsonl). Skipping generation."
-        echo "Use 'just train-generate-force name={{name}}' to regenerate."
+        echo "Use 'just train-generate-force {{name}}' to regenerate."
     else
         uv run python -m clitron_training.generate_dataset \
             --schema ../schemas/{{name}}.yaml \

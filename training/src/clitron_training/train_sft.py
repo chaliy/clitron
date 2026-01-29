@@ -183,7 +183,7 @@ def train_sft(
         lr_scheduler_type=config["training"].get("lr_scheduler_type", "cosine"),
         logging_steps=config.get("logging", {}).get("logging_steps", 10),
         save_strategy="epoch",
-        evaluation_strategy="epoch" if "validation" in tokenized_dataset else "no",
+        eval_strategy="epoch" if "validation" in tokenized_dataset else "no",
         bf16=True,
         report_to=config.get("logging", {}).get("report_to", "none"),
         remove_unused_columns=False,
@@ -195,18 +195,24 @@ def train_sft(
         args=training_args,
         train_dataset=tokenized_dataset["train"],
         eval_dataset=tokenized_dataset.get("validation"),
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         data_collator=data_collator,
     )
 
-    # Train
-    if resume_from_checkpoint:
-        if resume_from_checkpoint is True:
-            logger.info("Resuming from latest checkpoint...")
+    # Check for existing checkpoints if auto-resume is requested
+    if resume_from_checkpoint is True:
+        output_dir = Path(config["training"]["output_dir"])
+        checkpoints = list(output_dir.glob("checkpoint-*"))
+        if checkpoints:
+            logger.info(f"Found {len(checkpoints)} checkpoint(s), resuming from latest...")
         else:
-            logger.info(f"Resuming from checkpoint: {resume_from_checkpoint}")
+            logger.info("No checkpoints found, starting fresh...")
+            resume_from_checkpoint = None
+    elif resume_from_checkpoint:
+        logger.info(f"Resuming from checkpoint: {resume_from_checkpoint}")
     else:
         logger.info("Starting training...")
+
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
     # Save
