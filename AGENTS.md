@@ -154,7 +154,6 @@ Schema: {schema_summary}
 | Model | Parameters | Quantized | Pros | Cons |
 |-------|------------|-----------|------|------|
 | Llama 3.2 1B | 1B | ~500MB | Best balance | Slightly larger |
-| Qwen2.5 0.5B | 0.5B | ~300MB | Smallest | Less capable |
 | SmolLM2 1.7B | 1.7B | ~800MB | Edge-optimized | Larger |
 | Gemma 2 2B | 2B | ~1GB | Good quality | Large |
 

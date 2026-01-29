@@ -13,7 +13,6 @@ Clitron requires a small, fast language model capable of understanding natural l
 | **Llama 3.2 1B Instruct** | 1B | ~500MB (Q4) | Best balance of size/capability |
 | **Llama 3.2 3B Instruct** | 3B | ~1.5GB (Q4) | Better accuracy, larger |
 | **Gemma 2 2B** | 2B | ~1GB (Q4) | Good instruction following |
-| **Qwen2.5 0.5B** | 0.5B | ~300MB (Q4) | Smallest, may lack capability |
 | **SmolLM2 1.7B** | 1.7B | ~800MB (Q4) | Designed for edge deployment |
 
 ### Recommended: Llama 3.2 1B Instruct
@@ -173,6 +172,35 @@ let model = Interpreter::load_or_download().await?;
 ```
 
 **Recommended**: Option 3 for flexibility and smaller initial binary.
+
+## Llama License Requirements
+
+When distributing fine-tuned Llama models, you must comply with the [Llama 3.2 Community License](https://www.llama.com/llama3_2/license/):
+
+### Required for Distribution
+
+1. **Model Naming**: Model filename must start with "Llama" (e.g., `Llama-clitron-gh-q4_k_m.gguf`)
+2. **Attribution**: Display "Built with Llama" on website, UI, or documentation
+3. **License Copy**: Bundle a copy of the Llama 3.2 Community License with the distribution
+
+### Usage Restrictions
+
+- Must follow Meta's Acceptable Use Policy
+- Free for commercial use if < 700M monthly active users
+- Companies with >= 700M MAU need a separate commercial agreement with Meta
+
+### Example Distribution Structure
+
+```
+my-cli/
+├── bin/
+│   └── my-cli
+├── models/
+│   └── Llama-clitron-gh-q4_k_m.gguf
+├── LICENSE                    # Your app license
+├── LLAMA_LICENSE             # Llama 3.2 Community License
+└── README.md                  # Include "Built with Llama"
+```
 
 ## Evaluation Metrics
 

@@ -377,12 +377,34 @@ python -m llama_cpp.convert \
 
 ## Hardware Requirements
 
-### Minimum (Training)
+### Apple Silicon (MPS) - Recommended for Local Training
+
+Apple Silicon Macs can train using PyTorch's MPS backend:
+
+- **Minimum**: M1/M2/M3 with 16GB unified memory
+- **Recommended**: M1 Pro/Max/Ultra or M2/M3/M4 Pro with 32GB+ memory
+- **Storage**: 50GB free space
+
+The training code uses `device_map="auto"` which automatically detects MPS.
+
+```bash
+# Verify MPS is available
+python -c "import torch; print(torch.backends.mps.is_available())"
+
+# Run training (MPS is auto-detected)
+just train-sft name=gh
+```
+
+**Note**: MPS training is slower than NVIDIA GPUs but much faster than CPU-only training.
+
+### NVIDIA GPU (Cloud or Local)
+
+**Minimum**:
 - GPU: 1x RTX 3090 or A100 (24GB VRAM)
 - RAM: 32GB
 - Storage: 100GB SSD
 
-### Recommended (Training)
+**Recommended**:
 - GPU: 2x A100 80GB
 - RAM: 128GB
 - Storage: 500GB NVMe

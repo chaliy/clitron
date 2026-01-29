@@ -90,8 +90,21 @@ def preprocess_function(examples: dict, tokenizer) -> dict:
     return model_inputs
 
 
-def train_sft(config_path: Path, data_dir: Path | None = None, output_dir: Path | None = None) -> None:
-    """Run SFT training."""
+def train_sft(
+    config_path: Path,
+    data_dir: Path | None = None,
+    output_dir: Path | None = None,
+    resume_from_checkpoint: bool | Path | None = None,
+) -> None:
+    """Run SFT training.
+
+    Args:
+        config_path: Path to the YAML configuration file.
+        data_dir: Override data directory from config.
+        output_dir: Override output directory from config.
+        resume_from_checkpoint: If True, resume from latest checkpoint in output_dir.
+            If a Path, resume from that specific checkpoint directory.
+    """
     config = load_config(config_path)
 
     # Override paths from command line
@@ -187,8 +200,14 @@ def train_sft(config_path: Path, data_dir: Path | None = None, output_dir: Path 
     )
 
     # Train
-    logger.info("Starting training...")
-    trainer.train()
+    if resume_from_checkpoint:
+        if resume_from_checkpoint is True:
+            logger.info("Resuming from latest checkpoint...")
+        else:
+            logger.info(f"Resuming from checkpoint: {resume_from_checkpoint}")
+    else:
+        logger.info("Starting training...")
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
     # Save
     logger.info(f"Saving model to {config['training']['output_dir']}")
@@ -204,9 +223,19 @@ def main():
     parser.add_argument("--config", type=Path, required=True, help="Path to config YAML")
     parser.add_argument("--data-dir", type=Path, help="Override data directory")
     parser.add_argument("--output-dir", type=Path, help="Override output directory")
+    parser.add_argument(
+        "--start-from-scratch",
+        action="store_true",
+        help="Start training from scratch, ignoring any existing checkpoints.",
+    )
 
     args = parser.parse_args()
-    train_sft(args.config, args.data_dir, args.output_dir)
+
+    # By default, resume from checkpoint if one exists (pass True to auto-detect)
+    # If --start-from-scratch is set, pass None to start fresh
+    resume = None if args.start_from_scratch else True
+
+    train_sft(args.config, args.data_dir, args.output_dir, resume)
 
 
 if __name__ == "__main__":

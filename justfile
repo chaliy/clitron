@@ -140,9 +140,9 @@ train-generate-force name="gh" num="3000":
         --schema ../schemas/{{name}}.yaml \
         --output ./data/{{name}}/train.jsonl \
         --num-examples {{num}} \
-        --no-resume
+        --start-from-scratch
 
-# Run SFT training
+# Run SFT training (auto-resumes from checkpoint if available)
 train-sft name="gh":
     #!/usr/bin/env bash
     set -e
@@ -152,6 +152,18 @@ train-sft name="gh":
         --config ./configs/sft_config.yaml \
         --data-dir ./data/{{name}} \
         --output-dir ./models/{{name}}/sft
+
+# Run SFT training from scratch (ignores existing checkpoints)
+train-sft-scratch name="gh":
+    #!/usr/bin/env bash
+    set -e
+    cd training
+    mkdir -p "./models/{{name}}"
+    uv run python -m clitron_training.train_sft \
+        --config ./configs/sft_config.yaml \
+        --data-dir ./data/{{name}} \
+        --output-dir ./models/{{name}}/sft \
+        --start-from-scratch
 
 # Generate preference data for DPO
 train-generate-preferences name="gh":

@@ -489,7 +489,7 @@ def main():
     parser.add_argument("--num-examples", type=int, default=3000, help="Number of examples")
     parser.add_argument("--batch-size", type=int, default=50, help="Batch size for generation")
     parser.add_argument("--validation-split", type=float, default=0.1, help="Validation split")
-    parser.add_argument("--no-resume", action="store_true", help="Start fresh, don't resume")
+    parser.add_argument("--start-from-scratch", action="store_true", help="Start fresh, ignore existing progress")
 
     args = parser.parse_args()
 
@@ -499,7 +499,7 @@ def main():
         num_examples=args.num_examples,
         batch_size=args.batch_size,
         validation_split=args.validation_split,
-        resume=not args.no_resume,
+        resume=not args.start_from_scratch,
     )
 
 
