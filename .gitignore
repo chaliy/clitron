@@ -28,8 +28,8 @@ wheels/
 venv/
 ENV/
 
-# Training artifacts
-training/data/
+# Training artifacts (keep manually created data, ignore generated)
+training/data/*_progress.jsonl
 training/models/
 models/
 *.gguf
