@@ -74,6 +74,10 @@ def preprocess_function(examples: dict, tokenizer) -> dict:
 
     This masks the prompt tokens (sets labels to -100) so the model
     only learns to predict the JSON response, not the prompt.
+
+    IMPORTANT: We append the EOS token after the response so the model
+    learns when to stop generating. Without this, the model will continue
+    generating multiple JSON objects instead of stopping.
     """
     # Handle context field (can be None or dict, stored as string or dict in dataset)
     contexts = examples.get("context", [None] * len(examples["instruction"]))
@@ -105,13 +109,19 @@ def preprocess_function(examples: dict, tokenizer) -> dict:
             max_length=1024,
         )
 
-        # Combine input_ids
-        input_ids = prompt_tokens["input_ids"] + response_tokens["input_ids"]
+        # Combine input_ids and add EOS token at the end
+        # The EOS token teaches the model when to stop generating
+        eos_token_id = tokenizer.eos_token_id
+        input_ids = prompt_tokens["input_ids"] + response_tokens["input_ids"] + [eos_token_id]
         attention_mask = [1] * len(input_ids)
 
-        # Create labels: -100 for prompt (ignored), actual IDs for response
+        # Create labels: -100 for prompt (ignored), actual IDs for response + EOS
         # -100 is the ignore index for CrossEntropyLoss
-        labels = [-100] * len(prompt_tokens["input_ids"]) + response_tokens["input_ids"]
+        labels = (
+            [-100] * len(prompt_tokens["input_ids"])
+            + response_tokens["input_ids"]
+            + [eos_token_id]
+        )
 
         # Truncate if needed
         if len(input_ids) > 2048:

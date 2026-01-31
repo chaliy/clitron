@@ -295,21 +295,24 @@ Output as JSON array:
 - Poor actual performance (generates wrong format outputs)
 - Model "passes" by predicting prompt tokens well, but fails at the actual task
 
-**Solution**: Mask non-response tokens by setting their labels to `-100` (PyTorch's ignore index):
+**Solution**: Mask non-response tokens by setting their labels to `-100` (PyTorch's ignore index), and **append EOS token** to teach the model when to stop:
 
 ```python
 # Tokenize prompt and response separately
 prompt_tokens = tokenizer(prompt, add_special_tokens=True)
 response_tokens = tokenizer(response, add_special_tokens=False)
 
-# Combine for input
-input_ids = prompt_tokens["input_ids"] + response_tokens["input_ids"]
+# Combine for input, adding EOS token at the end
+eos_token_id = tokenizer.eos_token_id
+input_ids = prompt_tokens["input_ids"] + response_tokens["input_ids"] + [eos_token_id]
 
-# Labels: -100 for prompt (ignored), actual IDs for response only
-labels = [-100] * len(prompt_tokens["input_ids"]) + response_tokens["input_ids"]
+# Labels: -100 for prompt (ignored), actual IDs for response + EOS
+labels = [-100] * len(prompt_tokens["input_ids"]) + response_tokens["input_ids"] + [eos_token_id]
 ```
 
-This ensures the loss is computed **only on the JSON response**, forcing the model to learn the output format.
+This ensures:
+1. The loss is computed **only on the JSON response**, forcing the model to learn the output format
+2. The model learns to **stop generating** after the JSON output (EOS token)
 
 ### Training Configuration
 
