@@ -30,6 +30,8 @@ ENV/
 
 # Training artifacts (keep manually created data, ignore generated)
 training/data/*_progress.jsonl
+training/data/*/preferences.jsonl
+training/data/*/*.checkpoint.*
 training/models/
 models/
 *.gguf
