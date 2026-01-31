@@ -268,11 +268,7 @@ pub struct Suggestion {
 }
 
 /// Validate an argument value against its expected type.
-fn validate_arg_type(
-    name: &str,
-    value: &serde_json::Value,
-    expected: &ArgType,
-) -> Result<()> {
+fn validate_arg_type(name: &str, value: &serde_json::Value, expected: &ArgType) -> Result<()> {
     use crate::schema::SimpleArgType;
 
     let valid = match expected {

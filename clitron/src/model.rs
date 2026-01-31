@@ -116,11 +116,7 @@ impl Model {
     }
 
     /// Run inference with environmental context.
-    pub fn infer_with_context(
-        &self,
-        input: &str,
-        context: &Context,
-    ) -> Result<InterpretedCommand> {
+    pub fn infer_with_context(&self, input: &str, context: &Context) -> Result<InterpretedCommand> {
         let prompt = self.build_prompt(input, Some(context));
 
         // TODO: Implement actual inference

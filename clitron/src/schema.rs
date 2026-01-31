@@ -35,13 +35,19 @@ impl CommandSchema {
     /// Find a command by name.
     pub fn find_command(&self, name: &str) -> Option<&Command> {
         self.commands.iter().find(|c| {
-            c.name == name || c.aliases.as_ref().map_or(false, |a| a.contains(&name.to_string()))
+            c.name == name
+                || c.aliases
+                    .as_ref()
+                    .map_or(false, |a| a.contains(&name.to_string()))
         })
     }
 
     /// Generate a summary for model context.
     pub fn to_summary(&self) -> String {
-        let mut summary = format!("CLI: {} - {}\n\nCommands:\n", self.cli_name, self.description);
+        let mut summary = format!(
+            "CLI: {} - {}\n\nCommands:\n",
+            self.cli_name, self.description
+        );
 
         for cmd in &self.commands {
             summary.push_str(&format!("  {} - {}\n", cmd.name, cmd.description));
@@ -84,7 +90,10 @@ impl Command {
     /// Find a subcommand by name.
     pub fn find_subcommand(&self, name: &str) -> Option<&Subcommand> {
         self.subcommands.iter().find(|s| {
-            s.name == name || s.aliases.as_ref().map_or(false, |a| a.contains(&name.to_string()))
+            s.name == name
+                || s.aliases
+                    .as_ref()
+                    .map_or(false, |a| a.contains(&name.to_string()))
         })
     }
 }

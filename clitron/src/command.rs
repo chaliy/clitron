@@ -54,7 +54,11 @@ impl InterpretedCommand {
     }
 
     /// Add an argument.
-    pub fn with_arg(mut self, name: impl Into<String>, value: impl Into<serde_json::Value>) -> Self {
+    pub fn with_arg(
+        mut self,
+        name: impl Into<String>,
+        value: impl Into<serde_json::Value>,
+    ) -> Self {
         self.args.insert(name.into(), value.into());
         self
     }
