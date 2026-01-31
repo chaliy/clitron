@@ -57,12 +57,8 @@ def train_dpo(
         device_map="auto",
     )
 
-    # Reference model (frozen copy)
-    ref_model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.bfloat16,
-        device_map="auto",
-    )
+    # Note: With PEFT/LoRA, TRL uses the frozen base model as reference automatically
+    # No need for separate ref_model
 
     # Load preference dataset
     logger.info("Loading preference dataset...")
@@ -104,13 +100,13 @@ def train_dpo(
         remove_unused_columns=False,
     )
 
-    # DPO Trainer
+    # DPO Trainer (with PEFT, ref_model is handled automatically)
     trainer = DPOTrainer(
         model=model,
-        ref_model=ref_model,
+        ref_model=None,
         args=dpo_config,
         train_dataset=dataset["train"],
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         peft_config=peft_config,
     )
 
