@@ -286,6 +286,31 @@ Output as JSON array:
 
 ## Stage 2: Supervised Fine-Tuning (SFT)
 
+### Response-Only Loss Masking
+
+**Critical**: The SFT training uses **response-only loss masking** to ensure the model learns to generate correct JSON outputs rather than memorizing prompts.
+
+**Problem Discovered**: When training with `labels = input_ids` (standard causal LM), the model learns to predict the entire sequence including system prompts and user input. This results in:
+- Low training loss (appears to converge)
+- Poor actual performance (generates wrong format outputs)
+- Model "passes" by predicting prompt tokens well, but fails at the actual task
+
+**Solution**: Mask non-response tokens by setting their labels to `-100` (PyTorch's ignore index):
+
+```python
+# Tokenize prompt and response separately
+prompt_tokens = tokenizer(prompt, add_special_tokens=True)
+response_tokens = tokenizer(response, add_special_tokens=False)
+
+# Combine for input
+input_ids = prompt_tokens["input_ids"] + response_tokens["input_ids"]
+
+# Labels: -100 for prompt (ignored), actual IDs for response only
+labels = [-100] * len(prompt_tokens["input_ids"]) + response_tokens["input_ids"]
+```
+
+This ensures the loss is computed **only on the JSON response**, forcing the model to learn the output format.
+
 ### Training Configuration
 
 ```yaml
@@ -359,21 +384,41 @@ data:
 
 ## Stage 4: Quantization
 
+### LoRA Adapter Merging
+
+Since training uses LoRA adapters, the quantization process must first merge adapters with the base model:
+
+1. **Detect LoRA adapters** - Check for `adapter_config.json` and `adapter_model.safetensors`
+2. **Load base model** - From the path specified in adapter config
+3. **Merge adapters** - Use PEFT's `merge_and_unload()` to create full model
+4. **Convert to GGUF** - Use llama.cpp's `convert_hf_to_gguf.py`
+5. **Quantize** - Apply Q4_K_M or other quantization
+
 ### GGUF Conversion
 
-```bash
-# Convert to GGUF format
-python -m llama_cpp.convert \
-    --input ./models/dpo \
-    --output ./models/clitron.gguf \
-    --outtype f16
+The quantization script handles this automatically:
 
-# Quantize to Q4_K_M
-./llama-quantize \
-    ./models/clitron.gguf \
-    ./models/clitron-q4_k_m.gguf \
-    q4_k_m
+```bash
+# Full pipeline (detects LoRA, merges, converts, quantizes)
+just train-quantize name=gh quant=q4_k_m
 ```
+
+Manual process:
+
+```bash
+# 1. Merge LoRA adapters (handled by quantize.py)
+# 2. Convert to GGUF format
+python convert_hf_to_gguf.py ./merged_model --outfile model-f16.gguf --outtype f16
+
+# 3. Quantize to Q4_K_M
+llama-quantize model-f16.gguf model-q4_k_m.gguf q4_k_m
+```
+
+### Dependencies
+
+- `llama.cpp` tools (install via `brew install llama.cpp` on macOS)
+- `gguf` Python package
+- `peft` for LoRA merging
 
 ## Hardware Requirements
 

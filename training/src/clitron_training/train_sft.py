@@ -55,39 +55,79 @@ def format_context(context: dict | None) -> str:
     return "<|context|>\n" + "\n".join(parts) + "\n\n"
 
 
-def format_prompt(example: dict) -> str:
-    """Format a training example as a prompt."""
+def format_prompt_and_response(example: dict) -> tuple[str, str]:
+    """Format a training example into prompt and response parts."""
     context_section = format_context(example.get("context"))
-    return f"""<|system|>
+    prompt = f"""<|system|>
 You are a CLI command interpreter. Output only valid JSON.
 
 {context_section}<|user|>
 {example['instruction']}
 <|assistant|>
-{example['output']}"""
+"""
+    response = example['output']
+    return prompt, response
 
 
 def preprocess_function(examples: dict, tokenizer) -> dict:
-    """Tokenize examples for training."""
+    """Tokenize examples for training with response-only loss.
+
+    This masks the prompt tokens (sets labels to -100) so the model
+    only learns to predict the JSON response, not the prompt.
+    """
     # Handle context field (can be None or dict, stored as string or dict in dataset)
     contexts = examples.get("context", [None] * len(examples["instruction"]))
 
-    prompts = [
-        format_prompt({"instruction": i, "context": c, "output": o})
-        for i, c, o in zip(examples["instruction"], contexts, examples["output"])
-    ]
+    all_input_ids = []
+    all_attention_mask = []
+    all_labels = []
 
-    model_inputs = tokenizer(
-        prompts,
-        max_length=2048,
-        truncation=True,
-        padding=False,
-    )
+    for instruction, context, output in zip(
+        examples["instruction"], contexts, examples["output"]
+    ):
+        prompt, response = format_prompt_and_response({
+            "instruction": instruction,
+            "context": context,
+            "output": output,
+        })
 
-    # For causal LM, labels are the same as input_ids
-    model_inputs["labels"] = model_inputs["input_ids"].copy()
+        # Tokenize prompt and response separately
+        prompt_tokens = tokenizer(
+            prompt,
+            add_special_tokens=True,
+            truncation=True,
+            max_length=1024,
+        )
+        response_tokens = tokenizer(
+            response,
+            add_special_tokens=False,  # Don't add BOS token to response
+            truncation=True,
+            max_length=1024,
+        )
 
-    return model_inputs
+        # Combine input_ids
+        input_ids = prompt_tokens["input_ids"] + response_tokens["input_ids"]
+        attention_mask = [1] * len(input_ids)
+
+        # Create labels: -100 for prompt (ignored), actual IDs for response
+        # -100 is the ignore index for CrossEntropyLoss
+        labels = [-100] * len(prompt_tokens["input_ids"]) + response_tokens["input_ids"]
+
+        # Truncate if needed
+        if len(input_ids) > 2048:
+            input_ids = input_ids[:2048]
+            attention_mask = attention_mask[:2048]
+            labels = labels[:2048]
+
+        all_input_ids.append(input_ids)
+        all_attention_mask.append(attention_mask)
+        all_labels.append(labels)
+
+    return {
+        "input_ids": all_input_ids,
+        "attention_mask": all_attention_mask,
+        "labels": all_labels,
+    }
 
 
 def train_sft(
