@@ -33,6 +33,7 @@ training/data/*_progress.jsonl
 training/data/*/preferences.jsonl
 training/data/*/*.checkpoint.*
 training/models/
+training/src/clitron_training/convert_hf_to_gguf.py
 models/
 *.gguf
 *.bin
