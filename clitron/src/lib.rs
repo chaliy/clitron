@@ -51,6 +51,7 @@ pub mod context;
 pub mod error;
 pub mod interpreter;
 pub mod model;
+pub mod progress;
 pub mod schema;
 
 // Re-export main types at crate root
@@ -58,7 +59,11 @@ pub use command::InterpretedCommand;
 pub use context::{Context, GitContext};
 pub use error::{ClitronError, Result, ValidationError};
 pub use interpreter::{Interpreter, InterpreterConfig, Suggestion};
-pub use model::{Model, ModelConfig, ModelManager};
+pub use model::{Model, ModelConfig, ModelManager, ModelStatus};
+pub use progress::{
+    clear_terminal_progress, set_terminal_progress, DownloadProgress, DownloadTracker,
+    TerminalOutput, TerminalProgressState,
+};
 pub use schema::{ArgType, Argument, Command, CommandSchema, Flag, Subcommand};
 
 /// Library version.
