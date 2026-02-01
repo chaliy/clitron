@@ -1,0 +1,72 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+
+# Training artifacts (keep manually created data, ignore generated)
+training/data/*_progress.jsonl
+training/data/*/preferences.jsonl
+training/data/*/*.checkpoint.*
+training/models/
+training/src/clitron_training/convert_hf_to_gguf.py
+models/
+*.gguf
+*.bin
+*.safetensors
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.local
+.envrc
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+*.lcov
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Weights & Biases
+wandb/

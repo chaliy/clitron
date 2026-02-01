@@ -1,0 +1,30 @@
+# DPO (Direct Preference Optimization) Configuration
+
+model:
+  # Start from SFT checkpoint
+  name: "./models/sft"
+
+training:
+  output_dir: "./models/dpo"
+  num_train_epochs: 1
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 8
+  learning_rate: 5.0e-6
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+
+  # DPO specific parameters
+  beta: 0.1  # KL penalty coefficient
+  loss_type: "sigmoid"  # or "hinge"
+
+  # LoRA for DPO
+  lora_r: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+
+data:
+  preference_file: "./data/preferences.jsonl"
+
+logging:
+  report_to: "none"
+  logging_steps: 10

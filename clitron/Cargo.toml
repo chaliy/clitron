@@ -1,0 +1,30 @@
+[package]
+name = "clitron"
+description = "Library for building human-friendly CLI interfaces using small language models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["candle"]
+candle = ["dep:candle-core", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+dirs = { workspace = true }
+once_cell = { workspace = true }
+
+# ML inference (Candle - pure Rust)
+candle-core = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
