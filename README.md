@@ -15,6 +15,37 @@ hgh "show my open pull requests"
 3. **Schema-Driven**: CLI commands are defined in YAML schemas that guide both training and interpretation
 4. **Clap Integration**: Seamlessly integrates with Rust's clap library for CLI parsing
 
+## Demo
+
+### HGH Demo CLI
+
+`hgh` (Human GitHub) wraps the official `gh` CLI with natural language understanding.
+
+#### Installation
+
+```bash
+# Install from the repository
+cargo install --git https://github.com/chaliy/clitron.git hgh
+```
+
+#### Usage
+
+```bash
+# Natural language commands
+hgh "show my open prs"
+hgh "list merged pull requests"
+hgh "create a pr for this branch"
+hgh "view pr 123"
+hgh "show issues with bug label"
+hgh "list failed workflow runs"
+
+# Options
+hgh -e "show prs"       # Explain: show interpreted command
+hgh -n "show prs"       # Dry run: don't execute
+hgh -c "merge pr 123"   # Confirm before executing
+hgh -r pr list          # Raw: bypass interpretation
+```
+
 ## Project Structure
 
 ```
@@ -104,26 +135,6 @@ fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-```
-
-## HGH Demo CLI
-
-`hgh` (Human GitHub) wraps the official `gh` CLI with natural language understanding:
-
-```bash
-# Natural language commands
-hgh "show my open prs"
-hgh "list merged pull requests"
-hgh "create a pr for this branch"
-hgh "view pr 123"
-hgh "show issues with bug label"
-hgh "list failed workflow runs"
-
-# Options
-hgh -e "show prs"       # Explain: show interpreted command
-hgh -n "show prs"       # Dry run: don't execute
-hgh -c "merge pr 123"   # Confirm before executing
-hgh -r pr list          # Raw: bypass interpretation
 ```
 
 ## Specifications
