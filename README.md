@@ -28,6 +28,14 @@ hgh show my open pull requests
 cargo install --git https://github.com/chaliy/clitron.git hgh
 ```
 
+#### Model
+
+On first run, `hgh` automatically downloads the inference model from HuggingFace:
+
+- **Repository**: [chaliy/clitron-gh](https://huggingface.co/chaliy/clitron-gh)
+- **Model file**: `clitron-gh-q4_k_m.gguf` (~500MB)
+- **Cache location**: `~/.clitron/models/`
+
 #### Usage
 
 ```bash
