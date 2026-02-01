@@ -9,9 +9,39 @@ pub enum ClitronError {
     #[error("Model loading failed: {0}")]
     ModelLoad(String),
 
+    /// Model loading failed with details.
+    #[error("Failed to load model: {reason}")]
+    ModelLoadFailed {
+        /// Reason for failure.
+        reason: String,
+    },
+
+    /// Model download failed.
+    #[error("Failed to download model: {reason}")]
+    ModelDownloadFailed {
+        /// Reason for failure.
+        reason: String,
+    },
+
     /// Inference failed.
     #[error("Inference failed: {0}")]
     Inference(String),
+
+    /// Inference failed with details.
+    #[error("Inference failed: {reason}")]
+    InferenceFailed {
+        /// Reason for failure.
+        reason: String,
+    },
+
+    /// Invalid output from model.
+    #[error("Invalid model output: {reason}\nOutput: {output}")]
+    InvalidOutput {
+        /// The raw output from the model.
+        output: String,
+        /// Reason why it's invalid.
+        reason: String,
+    },
 
     /// Invalid JSON output from model.
     #[error("Invalid JSON output: {0}")]

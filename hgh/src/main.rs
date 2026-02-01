@@ -14,8 +14,8 @@ use std::io::{self, BufRead, Write};
 use std::process::{Command, ExitCode};
 
 use anyhow::{Context, Result};
-use clap::Parser;
-use clitron::{CommandSchema, InterpretedCommand, Interpreter};
+use clap::{Parser, Subcommand};
+use clitron::{CommandSchema, InterpretedCommand, Interpreter, ModelManager};
 
 /// Human-friendly GitHub CLI
 #[derive(Parser)]
@@ -23,6 +23,9 @@ use clitron::{CommandSchema, InterpretedCommand, Interpreter};
 #[command(about = "Human-friendly GitHub CLI powered by clitron")]
 #[command(version)]
 struct Cli {
+    #[command(subcommand)]
+    subcommand: Option<Commands>,
+
     /// Natural language command (or pass via stdin)
     #[arg(trailing_var_arg = true)]
     command: Vec<String>,
@@ -48,6 +51,17 @@ struct Cli {
     threshold: f32,
 }
 
+#[derive(Subcommand)]
+enum Commands {
+    /// Download the language model
+    #[command(name = "model-download")]
+    ModelDownload,
+
+    /// Show model status
+    #[command(name = "model-status")]
+    ModelStatus,
+}
+
 fn main() -> ExitCode {
     // Initialize logging
     tracing_subscriber::fmt()
@@ -69,6 +83,14 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<ExitCode> {
+    // Handle subcommands first
+    if let Some(cmd) = &cli.subcommand {
+        return match cmd {
+            Commands::ModelDownload => model_download(),
+            Commands::ModelStatus => model_status(),
+        };
+    }
+
     // Get input
     let input = if cli.command.is_empty() {
         // Read from stdin if no args
@@ -105,6 +127,44 @@ fn run(cli: Cli) -> Result<ExitCode> {
             Ok(ExitCode::FAILURE)
         }
     }
+}
+
+fn model_download() -> Result<ExitCode> {
+    println!("Downloading clitron model...");
+
+    let manager = ModelManager::new();
+
+    match manager.ensure_default_model() {
+        Ok(path) => {
+            println!("Model downloaded successfully!");
+            println!("Location: {}", path.display());
+            Ok(ExitCode::SUCCESS)
+        }
+        Err(e) => {
+            eprintln!("Failed to download model: {e}");
+            Ok(ExitCode::FAILURE)
+        }
+    }
+}
+
+fn model_status() -> Result<ExitCode> {
+    let manager = ModelManager::new();
+    let model_path = manager.default_model_path();
+
+    println!("Model path: {}", model_path.display());
+
+    if model_path.exists() {
+        let metadata = std::fs::metadata(&model_path)?;
+        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+        println!("Status: Downloaded");
+        println!("Size: {:.1} MB", size_mb);
+    } else {
+        println!("Status: Not downloaded");
+        println!();
+        println!("Run 'hgh model-download' to download the model.");
+    }
+
+    Ok(ExitCode::SUCCESS)
 }
 
 fn handle_interpretation(cli: &Cli, cmd: &InterpretedCommand, input: &str) -> Result<ExitCode> {

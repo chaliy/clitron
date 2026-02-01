@@ -1,8 +1,6 @@
 //! Model loading and inference.
 //!
-//! This module handles loading the GGUF model and running inference.
-//! Currently provides a mock implementation; real inference will be added
-//! when integrating llama.cpp or candle backends.
+//! This module handles loading the GGUF model and running inference using Candle.
 
 use std::path::{Path, PathBuf};
 
@@ -10,6 +8,9 @@ use crate::command::InterpretedCommand;
 use crate::context::Context;
 use crate::error::{ClitronError, Result};
 use crate::schema::CommandSchema;
+
+#[cfg(feature = "candle")]
+mod candle_backend;
 
 /// Configuration for model inference.
 #[derive(Debug, Clone)]
@@ -55,7 +56,7 @@ fn default_model_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".clitron")
         .join("models")
-        .join("clitron.gguf")
+        .join(ModelManager::DEFAULT_MODEL_FILE)
 }
 
 fn num_cpus() -> usize {
@@ -66,63 +67,73 @@ fn num_cpus() -> usize {
 
 /// Model wrapper for inference.
 pub struct Model {
+    #[allow(dead_code)]
     config: ModelConfig,
     schema: CommandSchema,
-    // TODO: Add actual model state when integrating inference backend
-    // model: llama_cpp::LlamaModel,
+    #[cfg(feature = "candle")]
+    backend: Option<candle_backend::CandleBackend>,
 }
 
 impl Model {
     /// Load a model from the given path.
     pub fn load(path: impl AsRef<Path>, schema: CommandSchema) -> Result<Self> {
         let path = path.as_ref();
+        let config = ModelConfig {
+            model_path: path.to_path_buf(),
+            ..Default::default()
+        };
 
-        // For now, we don't actually load a model
-        // This will be implemented when adding the inference backend
-        if !path.exists() {
-            tracing::warn!("Model file not found at {:?}, using mock inference", path);
-        }
-
-        Ok(Self {
-            config: ModelConfig {
-                model_path: path.to_path_buf(),
-                ..Default::default()
-            },
-            schema,
-        })
+        Self::load_with_config(config, schema)
     }
 
     /// Load with custom configuration.
     pub fn load_with_config(config: ModelConfig, schema: CommandSchema) -> Result<Self> {
-        if !config.model_path.exists() {
+        #[cfg(feature = "candle")]
+        let backend = if config.model_path.exists() {
+            match candle_backend::CandleBackend::load(&config) {
+                Ok(b) => {
+                    tracing::info!("Loaded Candle backend from {:?}", config.model_path);
+                    Some(b)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load Candle backend: {}, using mock", e);
+                    None
+                }
+            }
+        } else {
             tracing::warn!(
                 "Model file not found at {:?}, using mock inference",
                 config.model_path
             );
-        }
+            None
+        };
 
-        Ok(Self { config, schema })
+        Ok(Self {
+            config,
+            schema,
+            #[cfg(feature = "candle")]
+            backend,
+        })
     }
 
     /// Run inference on the given input.
     pub fn infer(&self, input: &str) -> Result<InterpretedCommand> {
-        let prompt = self.build_prompt(input, None);
-
-        // TODO: Implement actual inference
-        // For now, use simple pattern matching as a fallback
-        tracing::debug!("Prompt: {}", prompt);
-
-        self.mock_inference(input, None)
+        self.infer_with_context(input, &Context::default())
     }
 
     /// Run inference with environmental context.
     pub fn infer_with_context(&self, input: &str, context: &Context) -> Result<InterpretedCommand> {
         let prompt = self.build_prompt(input, Some(context));
+        tracing::debug!("Prompt: {}", prompt);
 
-        // TODO: Implement actual inference
-        // For now, use simple pattern matching as a fallback
-        tracing::debug!("Prompt with context: {}", prompt);
+        #[cfg(feature = "candle")]
+        if let Some(ref backend) = self.backend {
+            return backend
+                .generate(&prompt)
+                .and_then(|output| self.parse_output(&output));
+        }
 
+        // Fallback to mock inference
         self.mock_inference(input, Some(context))
     }
 
@@ -145,41 +156,53 @@ impl Model {
             })
             .unwrap_or_default();
 
+        // Use the same prompt format as training
         format!(
             r#"<|system|>
-You are a CLI command interpreter. Given a natural language command, output a JSON object representing the structured command.
-
-Available commands:
-{}
-
-Output only valid JSON in this format:
-{{"command": "...", "subcommand": "...", "args": {{}}, "flags": [], "confidence": 0.95}}
+You are a CLI command interpreter. Output only valid JSON.
 
 {}<|user|>
 {}
-
 <|assistant|>
 "#,
-            self.schema.to_summary(),
-            context_section,
-            input
+            context_section, input
         )
     }
 
+    /// Parse the model output into an InterpretedCommand.
+    fn parse_output(&self, output: &str) -> Result<InterpretedCommand> {
+        // Find the JSON in the output (model might produce extra text)
+        let json_start = output.find('{');
+        let json_end = output.rfind('}');
+
+        match (json_start, json_end) {
+            (Some(start), Some(end)) if start < end => {
+                let json_str = &output[start..=end];
+                serde_json::from_str(json_str).map_err(|e| ClitronError::InvalidOutput {
+                    output: output.to_string(),
+                    reason: format!("Invalid JSON: {}", e),
+                })
+            }
+            _ => Err(ClitronError::InvalidOutput {
+                output: output.to_string(),
+                reason: "No JSON object found in output".to_string(),
+            }),
+        }
+    }
+
     /// Mock inference using simple pattern matching.
-    /// This is a fallback when the model is not available.
     fn mock_inference(&self, input: &str, context: Option<&Context>) -> Result<InterpretedCommand> {
         let input_lower = input.to_lowercase();
         let words: Vec<&str> = input_lower.split_whitespace().collect();
 
-        // Try to identify command and subcommand
-        let mut cmd = InterpretedCommand::default();
-        cmd.confidence = 0.5; // Lower confidence for mock
+        let mut cmd = InterpretedCommand {
+            confidence: 0.5,
+            ..Default::default()
+        };
 
         // Check for context-dependent phrases
         if let Some(ctx) = context {
             if let Some(ref git) = ctx.git {
-                // "merge this", "close this", "show the pr" with current PR
                 if let Some(pr_num) = git.current_pr {
                     if input_lower.contains("this")
                         || input_lower.contains("the pr")
@@ -199,34 +222,30 @@ Output only valid JSON in this format:
                     || command
                         .aliases
                         .as_ref()
-                        .map_or(false, |a| a.iter().any(|alias| alias.contains(w)))
+                        .is_some_and(|a| a.iter().any(|alias| alias.contains(w)))
             });
 
             if cmd_matches {
                 cmd.command = command.name.clone();
                 cmd.confidence = 0.7;
 
-                // Look for subcommand
                 for subcommand in &command.subcommands {
                     let sub_matches = words.iter().any(|w| {
                         *w == subcommand.name
                             || subcommand
                                 .aliases
                                 .as_ref()
-                                .map_or(false, |a| a.iter().any(|alias| alias.contains(w)))
+                                .is_some_and(|a| a.iter().any(|alias| alias.contains(w)))
                     });
 
                     if sub_matches {
                         cmd.subcommand = Some(subcommand.name.clone());
                         cmd.confidence = 0.8;
-
-                        // Extract common patterns
                         self.extract_args(&input_lower, subcommand, &mut cmd);
                         break;
                     }
                 }
 
-                // If no subcommand but command has default (list), use it
                 if cmd.subcommand.is_none() && !command.subcommands.is_empty() {
                     if let Some(list_sub) = command.subcommands.iter().find(|s| s.name == "list") {
                         cmd.subcommand = Some("list".into());
@@ -238,7 +257,6 @@ Output only valid JSON in this format:
             }
         }
 
-        // If no command found, return with very low confidence
         if cmd.command.is_empty() {
             cmd.confidence = 0.1;
             return Err(ClitronError::LowConfidence {
@@ -257,43 +275,29 @@ Output only valid JSON in this format:
         subcommand: &crate::schema::Subcommand,
         cmd: &mut InterpretedCommand,
     ) {
-        // Common patterns for state
-        if input.contains("open") {
-            if subcommand.args.iter().any(|a| a.name == "state") {
-                cmd.args.insert("state".into(), "open".into());
-                cmd.confidence += 0.05;
-            }
-        } else if input.contains("closed") {
-            if subcommand.args.iter().any(|a| a.name == "state") {
-                cmd.args.insert("state".into(), "closed".into());
-                cmd.confidence += 0.05;
-            }
-        } else if input.contains("merged") {
-            if subcommand.args.iter().any(|a| a.name == "state") {
-                cmd.args.insert("state".into(), "merged".into());
-                cmd.confidence += 0.05;
-            }
+        if input.contains("open") && subcommand.args.iter().any(|a| a.name == "state") {
+            cmd.args.insert("state".into(), "open".into());
+            cmd.confidence += 0.05;
+        } else if input.contains("closed") && subcommand.args.iter().any(|a| a.name == "state") {
+            cmd.args.insert("state".into(), "closed".into());
+            cmd.confidence += 0.05;
+        } else if input.contains("merged") && subcommand.args.iter().any(|a| a.name == "state") {
+            cmd.args.insert("state".into(), "merged".into());
+            cmd.confidence += 0.05;
         }
 
-        // Common patterns for author
-        if input.contains("my") || input.contains("mine") || input.contains("i ") {
-            if subcommand.args.iter().any(|a| a.name == "author") {
-                cmd.args.insert("author".into(), "@me".into());
-                cmd.confidence += 0.05;
-            }
-            if subcommand.args.iter().any(|a| a.name == "assignee") {
-                cmd.args.insert("assignee".into(), "@me".into());
-                cmd.confidence += 0.05;
-            }
+        if (input.contains("my") || input.contains("mine") || input.contains("i "))
+            && subcommand.args.iter().any(|a| a.name == "author")
+        {
+            cmd.args.insert("author".into(), "@me".into());
+            cmd.confidence += 0.05;
         }
 
-        // Check for flags
         for flag in &subcommand.flags {
             let flag_triggers = flag
                 .natural_language
                 .as_ref()
-                .map(|nl| nl.iter().any(|t| input.contains(t)))
-                .unwrap_or(false);
+                .is_some_and(|nl| nl.iter().any(|t| input.contains(t)));
 
             if flag_triggers || input.contains(&flag.name) {
                 cmd.flags.push(flag.name.clone());
@@ -301,7 +305,6 @@ Output only valid JSON in this format:
             }
         }
 
-        // Extract numbers (for PR/issue numbers)
         if let Some(num) = extract_number(input) {
             if subcommand.args.iter().any(|a| a.name == "number") {
                 cmd.args.insert("number".into(), num.into());
@@ -309,30 +312,19 @@ Output only valid JSON in this format:
             }
         }
 
-        // Clamp confidence
         cmd.confidence = cmd.confidence.min(0.95);
     }
 }
 
-/// Extract a number from the input string.
 fn extract_number(input: &str) -> Option<i64> {
-    // Look for patterns like "#123", "number 123", or just "123"
-    let re_patterns = [r"#(\d+)", r"number\s+(\d+)", r"\b(\d+)\b"];
-
-    for pattern in &re_patterns {
-        // Simple extraction without regex for now
-        if pattern.contains('#') {
-            if let Some(idx) = input.find('#') {
-                let rest = &input[idx + 1..];
-                let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-                if let Ok(n) = num_str.parse() {
-                    return Some(n);
-                }
-            }
+    if let Some(idx) = input.find('#') {
+        let rest = &input[idx + 1..];
+        let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(n) = num_str.parse() {
+            return Some(n);
         }
     }
 
-    // Fallback: find any standalone number
     for word in input.split_whitespace() {
         if let Ok(n) = word.trim_matches(|c: char| !c.is_ascii_digit()).parse() {
             return Some(n);
@@ -348,6 +340,12 @@ pub struct ModelManager {
 }
 
 impl ModelManager {
+    /// Default HuggingFace model repository.
+    pub const DEFAULT_REPO: &'static str = "chalyi/clitron-gh";
+
+    /// Default model filename.
+    pub const DEFAULT_MODEL_FILE: &'static str = "clitron-gh-q4_k_m.gguf";
+
     /// Create with default cache directory (~/.clitron/models).
     pub fn new() -> Self {
         Self {
@@ -379,27 +377,49 @@ impl ModelManager {
         Ok(())
     }
 
-    /// Download a model if not cached.
-    ///
-    /// Returns the path to the model file.
-    pub async fn ensure_model(&self, model_id: &str) -> Result<PathBuf> {
-        let path = self.model_path(model_id);
+    /// Get the default model path.
+    pub fn default_model_path(&self) -> PathBuf {
+        self.cache_dir.join(Self::DEFAULT_MODEL_FILE)
+    }
 
-        if path.exists() {
-            return Ok(path);
+    /// Download a model if not cached.
+    #[cfg(feature = "candle")]
+    pub fn ensure_model(&self, repo_id: &str, filename: &str) -> Result<PathBuf> {
+        use hf_hub::api::sync::Api;
+
+        let target_path = self.cache_dir.join(filename);
+
+        if target_path.exists() {
+            tracing::info!("Model already cached at {:?}", target_path);
+            return Ok(target_path);
         }
 
         self.ensure_cache_dir()?;
 
-        // TODO: Implement actual download
-        tracing::warn!(
-            "Model download not yet implemented. Please manually place model at {:?}",
-            path
-        );
+        tracing::info!("Downloading model from {}/{}...", repo_id, filename);
 
-        Err(ClitronError::ModelNotFound {
-            path: path.to_string_lossy().into(),
-        })
+        let api = Api::new().map_err(|e| ClitronError::ModelDownloadFailed {
+            reason: format!("Failed to create HuggingFace API: {}", e),
+        })?;
+
+        let repo = api.model(repo_id.to_string());
+        let downloaded_path =
+            repo.get(filename)
+                .map_err(|e| ClitronError::ModelDownloadFailed {
+                    reason: format!("Failed to download model: {}", e),
+                })?;
+
+        // Copy to cache dir (hf-hub downloads to its own cache)
+        std::fs::copy(&downloaded_path, &target_path)?;
+
+        tracing::info!("Model downloaded to {:?}", target_path);
+        Ok(target_path)
+    }
+
+    /// Download the default model.
+    #[cfg(feature = "candle")]
+    pub fn ensure_default_model(&self) -> Result<PathBuf> {
+        self.ensure_model(Self::DEFAULT_REPO, Self::DEFAULT_MODEL_FILE)
     }
 
     /// Clear the model cache.
@@ -433,6 +453,6 @@ mod tests {
         let config = ModelConfig::default();
         assert_eq!(config.context_size, 2048);
         assert_eq!(config.max_tokens, 256);
-        assert!(config.temperature < 0.5); // Should be low for deterministic output
+        assert!(config.temperature < 0.5);
     }
 }

@@ -38,7 +38,7 @@ impl CommandSchema {
             c.name == name
                 || c.aliases
                     .as_ref()
-                    .map_or(false, |a| a.contains(&name.to_string()))
+                    .is_some_and(|a| a.contains(&name.to_string()))
         })
     }
 
@@ -93,7 +93,7 @@ impl Command {
             s.name == name
                 || s.aliases
                     .as_ref()
-                    .map_or(false, |a| a.contains(&name.to_string()))
+                    .is_some_and(|a| a.contains(&name.to_string()))
         })
     }
 }
