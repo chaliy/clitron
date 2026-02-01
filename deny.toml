@@ -12,7 +12,11 @@ targets = [
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-ignore = []
+# Ignore unmaintained crate advisories from transitive ML dependencies
+ignore = [
+    "RUSTSEC-2024-0436", # paste - unmaintained, transitive dep from candle/tokenizers
+    "RUSTSEC-2025-0119", # number_prefix - unmaintained, transitive dep from indicatif
+]
 
 [licenses]
 allow = [
@@ -24,10 +28,8 @@ allow = [
     "ISC",
     "Zlib",
     "Unicode-3.0",
-    "Unicode-DFS-2016",
-    "CC0-1.0",
     "MPL-2.0",
-    "OpenSSL",
+    "CDLA-Permissive-2.0", # webpki-roots
 ]
 confidence-threshold = 0.8
 
