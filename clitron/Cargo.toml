@@ -20,6 +20,12 @@ tracing = { workspace = true }
 dirs = { workspace = true }
 once_cell = { workspace = true }
 
+# Terminal detection
+libc = "0.2"
+
+# HTTP client for downloads with progress
+ureq = "2.9"
+
 # ML inference (Candle - pure Rust)
 candle-core = { workspace = true, optional = true }
 candle-transformers = { workspace = true, optional = true }
