@@ -5,7 +5,7 @@ A Rust library for building human-friendly CLI interfaces using small language m
 Instead of memorizing exact command syntax like `gh pr list --state open --author @me`, users can simply type:
 
 ```bash
-hgh "show my open pull requests"
+hgh show my open pull requests
 ```
 
 ## How It Works
@@ -32,17 +32,17 @@ cargo install --git https://github.com/chaliy/clitron.git hgh
 
 ```bash
 # Natural language commands
-hgh "show my open prs"
-hgh "list merged pull requests"
-hgh "create a pr for this branch"
-hgh "view pr 123"
-hgh "show issues with bug label"
-hgh "list failed workflow runs"
+hgh show my open prs
+hgh list merged pull requests
+hgh create a pr for this branch
+hgh view pr 123
+hgh show issues with bug label
+hgh list failed workflow runs
 
 # Options
-hgh -e "show prs"       # Explain: show interpreted command
-hgh -n "show prs"       # Dry run: don't execute
-hgh -c "merge pr 123"   # Confirm before executing
+hgh -e show prs         # Explain: show interpreted command
+hgh -n show prs         # Dry run: don't execute
+hgh -c merge pr 123     # Confirm before executing
 hgh -r pr list          # Raw: bypass interpretation
 ```
 
@@ -77,7 +77,7 @@ just build
 just test
 
 # Try the demo CLI
-just hgh "show my open prs"
+just hgh show my open prs
 ```
 
 ### Manual Setup
@@ -87,7 +87,7 @@ just hgh "show my open prs"
 cargo build --workspace
 
 # Run the hgh demo
-cargo run -p hgh -- "show my open pull requests"
+cargo run -p hgh -- show my open pull requests
 ```
 
 ## Training a Model
