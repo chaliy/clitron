@@ -84,3 +84,23 @@ jobs:
 
       - name: Run hgh tests
         run: cargo test -p hgh
+
+  training:
+    name: Offline training compatibility
+    runs-on: macos-14
+    env:
+      HF_HUB_OFFLINE: '1'
+      WANDB_MODE: disabled
+      UV_PYTHON_DOWNLOADS: never
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install uv==0.11.28
+      - name: Install CPU training dependencies
+        working-directory: training
+        run: uv sync --frozen --extra dev --no-install-package llama-cpp-python
+      - name: Test without models or external services
+        working-directory: training
+        run: uv run --no-sync pytest tests -q
