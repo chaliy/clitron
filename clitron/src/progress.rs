@@ -501,11 +501,7 @@ impl DownloadTracker {
         // Calculate ETA
         let eta = if let Some(total) = self.total {
             let remaining = total.saturating_sub(downloaded);
-            if speed > 0 {
-                Some(Duration::from_secs(remaining / speed))
-            } else {
-                None
-            }
+            remaining.checked_div(speed).map(Duration::from_secs)
         } else {
             None
         };
